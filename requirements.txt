@@ -1,0 +1,8 @@
+google-genai
+python-dotenv
+requests
+arxiv
+pymupdf
+chromadb
+streamlit
+pytest
