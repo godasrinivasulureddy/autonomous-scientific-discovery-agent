@@ -218,3 +218,19 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+
+# Additional environment files
+.env.*
+!.env.example
+
+# Local vector database
+chroma_db/
+.chroma/
+
+# Downloaded and processed research data
+data/downloads/
+data/processed/
+
+# Local VS Code settings
+.vscode/
