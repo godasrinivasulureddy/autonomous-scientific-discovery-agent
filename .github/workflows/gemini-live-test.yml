@@ -1,0 +1,40 @@
+name: Gemini Live API Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-gemini:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Gemini dependencies
+        run: |
+          python -m pip install google-genai python-dotenv
+
+      - name: Test real Gemini response
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python - <<'PY'
+          from services.gemini_service import generate_response
+
+          result = generate_response(
+              "Reply with exactly: Gemini connection successful"
+          )
+
+          print("Gemini response:", result)
+
+          if "Gemini connection successful" not in result:
+              raise RuntimeError("Unexpected Gemini response")
+
+          print("LIVE GEMINI API TEST PASSED")
+          PY
