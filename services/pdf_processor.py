@@ -4,7 +4,7 @@ import re
 import time
 from pathlib import Path
 
-import fitz  # PyMuPDF (installed with: pip install pymupdf)
+import pymupdf  # PyMuPDF (installed with: pip install pymupdf)
 import requests
 
 # Works whether you run it with the VS Code play button or with "python -m services.pdf_processor"
@@ -54,7 +54,7 @@ def download_pdf(paper, retries=3):
 # ---------- 2. Extract ----------
 def extract_text(pdf_path):
     """Return (raw_text, page_count) using PyMuPDF."""
-    with fitz.open(pdf_path) as doc:
+    with pymupdf.open(pdf_path) as doc:
         pages = [page.get_text() for page in doc]
         return "\n".join(pages), len(pages)
 
