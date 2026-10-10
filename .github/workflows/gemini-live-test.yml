@@ -1,3 +1,4 @@
+
 name: Gemini Live API Test
 
 on:
@@ -20,21 +21,37 @@ jobs:
         run: |
           python -m pip install google-genai python-dotenv
 
-      - name: Test real Gemini response
+      - name: Test Gemini API and Agent Orchestration
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           python - <<'PY'
           from services.gemini_service import generate_response
+          from agents.orchestrator import run_research_workflow
 
-          result = generate_response(
+          # Test 1: Gemini API connection
+          response = generate_response(
               "Reply with exactly: Gemini connection successful"
           )
+          assert "Gemini connection successful" in response
+          print("GEMINI API CONNECTION PASSED")
 
-          print("Gemini response:", result)
+          # Test 2: Agent orchestration
+          result = run_research_workflow(
+              research_topic="Machine Learning in Healthcare",
+              paper_text=(
+                  "This illustrative study compares logistic "
+                  "regression and random forest models for "
+                  "classification using precision, recall, "
+                  "and F1-score."
+              ),
+          )
 
-          if "Gemini connection successful" not in result:
-              raise RuntimeError("Unexpected Gemini response")
+          assert result["literature_review"].strip()
+          assert result["hypothesis"].strip()
+          assert result["experiment"]["status"] == "not_executed"
 
-          print("LIVE GEMINI API TEST PASSED")
+          print("AGENT ORCHESTRATION PASSED")
+          print("Literature review:", result["literature_review"][:300])
+          print("Hypothesis:", result["hypothesis"][:300])
           PY
