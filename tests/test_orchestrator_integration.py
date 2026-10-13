@@ -50,11 +50,23 @@ def test_paper_search_agent_integration():
         source="arxiv",
     )
 
+    
     with patch(
         "services.paper_fetcher.search_all",
         return_value=[sample_paper],
     ), patch(
+        "services.pdf_processor.process_paper",
+        return_value={
+            "title": "Machine Learning Research",
+            "source": "arxiv",
+            "url": "https://arxiv.org/abs/1234",
+            "full_text": "Extracted scientific PDF content.",
+        },
+    ) as mock_processor, patch(
         "agents.orchestrator.run_research_workflow",
+
+
+        
         return_value={
             "literature_review": "Sample literature review",
             "hypothesis": "Sample hypothesis",
@@ -66,6 +78,9 @@ def test_paper_search_agent_integration():
             max_results=1,
         )
 
+
+
+    
     assert result["paper_count"] == 1
     assert result["papers"][0]["title"] == "Machine Learning Research"
     assert result["literature_review"] == "Sample literature review"
