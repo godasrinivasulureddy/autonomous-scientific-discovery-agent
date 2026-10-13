@@ -46,3 +46,47 @@ def run_approved_experiment(values: list[float]) -> dict:
         experiment_name="descriptive_statistics",
         values=values,
     )
+
+
+
+def run_research_from_papers(
+    research_topic: str,
+    max_results: int = 3,
+) -> dict:
+    """Fetch scientific papers and run the research agents."""
+
+    from services.paper_fetcher import search_all
+
+    if not research_topic.strip():
+        raise ValueError("Research topic cannot be empty.")
+
+    if max_results < 1:
+        raise ValueError("max_results must be at least 1.")
+
+    # Step 1: Fetch papers from arXiv and PubMed
+    papers = search_all(research_topic, max_results=max_results)
+
+    if not papers:
+        raise ValueError("No research papers found for this topic.")
+
+    # Step 2: Prepare paper abstracts for the literature agent
+    paper_text = "\n\n".join(
+        f"Title: {paper.title}\n"
+        f"Source: {paper.source}\n"
+        f"URL: {paper.url}\n"
+        f"Abstract: {paper.abstract}"
+        for paper in papers
+    )
+
+    # Step 3: Run the existing agent workflow
+    result = run_research_workflow(
+        research_topic=research_topic,
+        paper_text=paper_text,
+    )
+
+    # Step 4: Include paper information
+    result["papers"] = [paper.to_dict() for paper in papers]
+    result["paper_count"] = len(papers)
+
+    return result
+
