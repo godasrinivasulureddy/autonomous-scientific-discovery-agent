@@ -69,14 +69,20 @@ def run_research_from_papers(
     if not papers:
         raise ValueError("No research papers found for this topic.")
 
-    # Step 2: Prepare paper abstracts for the literature agent
+
+    
+    # Step 2: Extract PDF text when available
+    from services.pdf_processor import process_paper
+    processed_papers = [process_paper(paper) for paper in papers]
+
     paper_text = "\n\n".join(
-        f"Title: {paper.title}\n"
-        f"Source: {paper.source}\n"
-        f"URL: {paper.url}\n"
-        f"Abstract: {paper.abstract}"
-        for paper in papers
+        f"Title: {record['title']}\n"
+        f"Source: {record['source']}\n"
+        f"URL: {record['url']}\n"
+        f"Text: {record['full_text']}"
+        for record in processed_papers
     )
+
 
     # Step 3: Run the existing agent workflow
     result = run_research_workflow(
@@ -89,4 +95,5 @@ def run_research_from_papers(
     result["paper_count"] = len(papers)
 
     return result
+
 
