@@ -139,3 +139,49 @@ def test_no_papers_found():
                 research_topic="Unknown Research Topic",
                 max_results=3,
             )
+
+
+
+def test_duplicate_papers_are_removed():
+    from unittest.mock import patch
+    from services.paper_fetcher import Paper
+    from agents.orchestrator import run_research_from_papers
+
+    paper = Paper(
+        paper_id="arxiv:1234",
+        title="Sample Research Paper",
+        abstract="Sample research abstract.",
+        authors=["Test Author"],
+        url="https://arxiv.org/abs/1234",
+        published="2026-10-10",
+        source="arxiv",
+    )
+
+    processed_record = {
+        "title": paper.title,
+        "source": paper.source,
+        "url": paper.url,
+        "full_text": paper.abstract,
+    }
+
+    with patch(
+        "services.paper_fetcher.search_all",
+        return_value=[paper, paper],
+    ), patch(
+        "services.pdf_processor.process_paper",
+        return_value=processed_record,
+    ) as mock_processor, patch(
+        "agents.orchestrator.run_research_workflow",
+        return_value={
+            "literature_review": "Sample review",
+            "hypothesis": "Sample hypothesis",
+        },
+    ):
+        result = run_research_from_papers(
+            research_topic="Machine Learning",
+            max_results=2,
+        )
+
+    assert result["paper_count"] == 1
+    assert len(result["papers"]) == 1
+    mock_processor.assert_called_once_with(paper)
