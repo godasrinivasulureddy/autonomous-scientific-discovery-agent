@@ -1,6 +1,7 @@
 
 import os
 import time
+import httpx
 
 from dotenv import load_dotenv
 from google import genai
@@ -30,16 +31,19 @@ def generate_response(prompt: str) -> str:
 
             if not response.text:
                 raise RuntimeError("Gemini returned an empty response.")
-
             return response.text
 
-        except ServerError as error:
-            if error.code != 503 or attempt == max_attempts:
-                raise
-
-            delay = 5 * attempt
-            print(
-                f"Gemini temporarily unavailable (503). "
-                f"Retrying in {delay} seconds..."
-            )
-            time.sleep(delay)
+            except (ServerError, httpx.TransportError) as error:
+                if isinstance(error, ServerError) and error.code != 503:
+                    raise
+    
+                if attempt == max_attempts:
+                    raise
+    
+                delay = 5 * attempt
+                print(
+                    f"Temporary Gemini API error: {type(error).__name__}. "
+                    f"Retrying in {delay} seconds...",
+                    flush=True,
+                )
+                time.sleep(delay)
