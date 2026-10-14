@@ -52,8 +52,11 @@ jobs:
           assert result["hypothesis"].strip()
           assert result["experiment"]["status"] == "not_executed"
 
+
           print("LIVE PAPER-TO-AGENT TEST PASSED")
           print("Papers found:", result["paper_count"])
           print("Literature review:", result["literature_review"][:300])
           print("Hypothesis:", result["hypothesis"][:300])
           PY
+
+# Retest with Gemini 503 retry handling
