@@ -185,3 +185,36 @@ def test_duplicate_papers_are_removed():
     assert result["paper_count"] == 1
     assert len(result["papers"]) == 1
     mock_processor.assert_called_once_with(paper)
+
+
+
+
+def test_paper_processing_failure():
+    from unittest.mock import patch
+    from services.paper_fetcher import Paper
+    from agents.orchestrator import run_research_from_papers
+
+    paper = Paper(
+        paper_id="arxiv:5678",
+        title="Sample Research",
+        abstract="Sample abstract",
+        authors=["Test Author"],
+        url="https://arxiv.org/abs/5678",
+        published="2026-10-10",
+        source="arxiv",
+    )
+
+    with patch(
+        "services.paper_fetcher.search_all",
+        return_value=[paper],
+    ), patch(
+        "services.pdf_processor.process_paper",
+        side_effect=RuntimeError("PDF processing failed"),
+    ):
+        with pytest.raises(RuntimeError, match="PDF processing failed"):
+            run_research_from_papers(
+                research_topic="Machine Learning",
+                max_results=1,
+            )
+
+
