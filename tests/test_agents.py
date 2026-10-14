@@ -24,3 +24,27 @@ def test_unapproved_experiment():
 def test_insufficient_data():
     with pytest.raises(ValueError):
         run_approved_experiment([10])
+
+
+
+def test_standard_deviation():
+    result = run_approved_experiment([10, 20, 30])
+
+    assert result["status"] == "success"
+    assert result["sample_size"] == 3
+    assert result["mean"] == 20
+    assert result["standard_deviation"] == pytest.approx(10.0)
+
+
+@pytest.mark.parametrize(
+    "invalid_values",
+    [
+        [10, "twenty", 30],
+        [10, None, 30],
+        [10, True, 30],
+    ],
+)
+def test_invalid_experiment_values(invalid_values):
+    with pytest.raises(ValueError, match="All values must be numeric"):
+        run_approved_experiment(invalid_values)
+
