@@ -65,6 +65,14 @@ def run_research_from_papers(
 
     # Step 1: Fetch papers from arXiv and PubMed
     papers = search_all(research_topic, max_results=max_results)
+    
+    # Remove duplicate papers using their unique paper IDs
+    unique_papers = {}
+    for paper in papers:
+        unique_papers.setdefault(paper.paper_id, paper)
+
+    papers = list(unique_papers.values())
+
 
     if not papers:
         raise ValueError("No research papers found for this topic.")
