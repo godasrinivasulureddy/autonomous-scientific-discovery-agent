@@ -8,6 +8,7 @@ on:
     paths:
       - ".github/workflows/live-paper-agent-test.yml"
   workflow_dispatch:
+  # Live integration test: paper retrieval and Gemini agents
 
 permissions:
   contents: read
