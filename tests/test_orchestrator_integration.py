@@ -124,3 +124,18 @@ def test_empty_paper_text():
             research_topic="Machine Learning",
             paper_text="",
         )
+
+
+def test_no_papers_found():
+    from unittest.mock import patch
+    from agents.orchestrator import run_research_from_papers
+
+    with patch(
+        "services.paper_fetcher.search_all",
+        return_value=[],
+    ):
+        with pytest.raises(ValueError, match="No research papers found"):
+            run_research_from_papers(
+                research_topic="Unknown Research Topic",
+                max_results=3,
+            )
