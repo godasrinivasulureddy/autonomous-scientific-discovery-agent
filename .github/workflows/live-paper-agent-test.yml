@@ -60,3 +60,4 @@ jobs:
           PY
 
 # Retest with Gemini 503 retry handling
+# Retest after fixing Gemini connection handling
