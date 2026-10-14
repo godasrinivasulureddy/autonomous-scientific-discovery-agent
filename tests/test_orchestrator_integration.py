@@ -90,3 +90,37 @@ def test_paper_search_agent_integration():
     assert "Machine Learning Research" in (
         mock_workflow.call_args.kwargs["paper_text"]
     )
+
+
+
+import pytest
+
+
+def test_empty_research_topic():
+    from agents.orchestrator import run_research_from_papers
+
+    with pytest.raises(ValueError, match="Research topic cannot be empty"):
+        run_research_from_papers(
+            research_topic="",
+            max_results=3,
+        )
+
+
+def test_invalid_paper_limit():
+    from agents.orchestrator import run_research_from_papers
+
+    with pytest.raises(ValueError, match="max_results must be at least 1"):
+        run_research_from_papers(
+            research_topic="Machine Learning",
+            max_results=0,
+        )
+
+
+def test_empty_paper_text():
+    from agents.orchestrator import run_research_workflow
+
+    with pytest.raises(ValueError, match="Paper text cannot be empty"):
+        run_research_workflow(
+            research_topic="Machine Learning",
+            paper_text="",
+        )
