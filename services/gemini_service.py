@@ -1,32 +1,45 @@
 
 import os
+import time
 
 from dotenv import load_dotenv
 from google import genai
+from google.genai.errors import ServerError
 
-# Load environment variables from .env
 load_dotenv()
 
 
 def generate_response(prompt: str) -> str:
-    """Generate a response using the Gemini API."""
-
     api_key = os.getenv("GEMINI_API_KEY")
 
     if not api_key:
         raise ValueError(
-            "GEMINI_API_KEY is missing. "
-            "Please configure your .env file."
+            "GEMINI_API_KEY is missing. Please configure your environment."
         )
 
     client = genai.Client(api_key=api_key)
 
-    response = client.models.generate_content(
-        model="gemini-3.8-flash",
-        contents=prompt,
-    )
+    max_attempts = 3
 
-    if not response.text:
-        raise RuntimeError("Gemini returned an empty response.")
+    for attempt in range(1, max_attempts + 1):
+        try:
+            response = client.models.generate_content(
+                model="gemini-3.8-flash",
+                contents=prompt,
+            )
 
-    return response.text
+            if not response.text:
+                raise RuntimeError("Gemini returned an empty response.")
+
+            return response.text
+
+        except ServerError as error:
+            if error.code != 503 or attempt == max_attempts:
+                raise
+
+            delay = 5 * attempt
+            print(
+                f"Gemini temporarily unavailable (503). "
+                f"Retrying in {delay} seconds..."
+            )
+            time.sleep(delay)
