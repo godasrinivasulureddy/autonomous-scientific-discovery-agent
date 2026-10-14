@@ -1,8 +1,8 @@
 
 import os
 import time
-import httpx
 
+import httpx
 from dotenv import load_dotenv
 from google import genai
 from google.genai.errors import ServerError
@@ -11,6 +11,8 @@ load_dotenv()
 
 
 def generate_response(prompt: str) -> str:
+    """Generate a Gemini response with retries for temporary errors."""
+
     api_key = os.getenv("GEMINI_API_KEY")
 
     if not api_key:
@@ -31,19 +33,20 @@ def generate_response(prompt: str) -> str:
 
             if not response.text:
                 raise RuntimeError("Gemini returned an empty response.")
+
             return response.text
 
-            except (ServerError, httpx.TransportError) as error:
-                if isinstance(error, ServerError) and error.code != 503:
-                    raise
-    
-                if attempt == max_attempts:
-                    raise
-    
-                delay = 5 * attempt
-                print(
-                    f"Temporary Gemini API error: {type(error).__name__}. "
-                    f"Retrying in {delay} seconds...",
-                    flush=True,
-                )
-                time.sleep(delay)
+        except (ServerError, httpx.TransportError) as error:
+            if isinstance(error, ServerError) and error.code != 503:
+                raise
+
+            if attempt == max_attempts:
+                raise
+
+            delay = 5 * attempt
+            print(
+                f"Temporary Gemini API error: {type(error).__name__}. "
+                f"Retrying in {delay} seconds...",
+                flush=True,
+            )
+            time.sleep(delay)
