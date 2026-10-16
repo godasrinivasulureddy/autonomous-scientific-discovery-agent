@@ -72,6 +72,7 @@ def test_retry_after_network_error():
     mock_sleep.assert_called_once_with(5)
 
 
+
 def test_network_error_after_all_retries():
     with patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}):
         with patch("services.gemini_service.genai.Client") as mock_client:
@@ -83,10 +84,16 @@ def test_network_error_after_all_retries():
                     "Connection unavailable"
                 )
 
-                with pytest.raises(httpx.ConnectError):
+                with pytest.raises(
+                    RuntimeError,
+                    match="All configured Gemini models failed after retries",
+                ):
                     generate_response("Test prompt")
 
-    assert mock_generate.call_count == 3
-    assert mock_sleep.call_count == 2
-    assert [call.args[0] for call in mock_sleep.call_args_list] == [5, 10]
+    assert mock_generate.call_count == 6
+    assert mock_sleep.call_count == 4
+    assert [call.args[0] for call in mock_sleep.call_args_list] == [
+        5, 10, 5, 10
+    ]
+
 
