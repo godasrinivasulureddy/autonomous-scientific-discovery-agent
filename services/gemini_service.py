@@ -51,13 +51,16 @@ def generate_response(prompt: str) -> str:
                     )
                     break
 
+                
                 delay = 5 * attempt
                 print(
-                    f"Temporary error with {model}. "
+                    f"Temporary error with {model}: "
+                    f"{type(error).__name__}: {error}. "
                     f"Retrying in {delay} seconds...",
                     flush=True,
                 )
                 time.sleep(delay)
+
 
     raise RuntimeError(
         "All configured Gemini models failed after retries."
