@@ -23,6 +23,7 @@ def generate_response(prompt: str) -> str:
     client = genai.Client(api_key=api_key)
 
     primary_model = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+    #fallback_model = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-2.5-flash")
     fallback_model = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-2.5-flash")
 
     models = list(dict.fromkeys([primary_model, fallback_model]))
