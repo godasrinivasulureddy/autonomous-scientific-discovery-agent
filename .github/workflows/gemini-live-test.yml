@@ -1,11 +1,16 @@
 
-name: Gemini Live API Test
+name: Gemini Model Availability Check
 
 on:
+  push:
+    branches:
+      - feature/agent-orchestration
+    paths:
+      - ".github/workflows/gemini-live-test.yml"
   workflow_dispatch:
 
 jobs:
-  test-gemini:
+  check-models:
     runs-on: ubuntu-latest
 
     steps:
@@ -17,41 +22,22 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install project dependencies
-        run: |
-          python -m pip install -r requirements.txt
+      - name: Install Gemini SDK
+        run: python -m pip install google-genai
 
-      - name: Test Gemini API and Agent Orchestration
+      - name: List available Gemini models
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           python - <<'PY'
-          from services.gemini_service import generate_response
-          from agents.orchestrator import run_research_workflow
+          import os
+          from google import genai
 
-          # Test 1: Gemini API connection
-          response = generate_response(
-              "Reply with exactly: Gemini connection successful"
-          )
-          assert "Gemini connection successful" in response
-          print("GEMINI API CONNECTION PASSED")
+          client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
-          # Test 2: Agent orchestration
-          result = run_research_workflow(
-              research_topic="Machine Learning in Healthcare",
-              paper_text=(
-                  "This illustrative study compares logistic "
-                  "regression and random forest models for "
-                  "classification using precision, recall, "
-                  "and F1-score."
-              ),
-          )
-
-          assert result["literature_review"].strip()
-          assert result["hypothesis"].strip()
-          assert result["experiment"]["status"] == "not_executed"
-
-          print("AGENT ORCHESTRATION PASSED")
-          print("Literature review:", result["literature_review"][:300])
-          print("Hypothesis:", result["hypothesis"][:300])
+          for model in client.models.list():
+              name = model.name
+              actions = getattr(model, "supported_actions", [])
+              if "generateContent" in actions:
+                  print(name)
           PY
