@@ -11,7 +11,7 @@ load_dotenv()
 
 
 def generate_response(prompt: str) -> str:
-    """Generate a Gemini response with retries for temporary errors."""
+    """Generate a Gemini response with retries and model fallback."""
 
     api_key = os.getenv("GEMINI_API_KEY")
 
@@ -22,31 +22,43 @@ def generate_response(prompt: str) -> str:
 
     client = genai.Client(api_key=api_key)
 
-    max_attempts = 3
+    primary_model = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+    fallback_model = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-2.5-flash")
 
-    for attempt in range(1, max_attempts + 1):
-        try:
-            response = client.models.generate_content(
-                model="gemini-3.8-flash",
-                contents=prompt,
-            )
+    models = list(dict.fromkeys([primary_model, fallback_model]))
 
-            if not response.text:
-                raise RuntimeError("Gemini returned an empty response.")
+    for model in models:
+        for attempt in range(1, 4):
+            try:
+                response = client.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                )
 
-            return response.text
+                if not response.text:
+                    raise RuntimeError("Gemini returned an empty response.")
 
-        except (ServerError, httpx.TransportError) as error:
-            if isinstance(error, ServerError) and error.code != 503:
-                raise
+                return response.text
 
-            if attempt == max_attempts:
-                raise
+            except (ServerError, httpx.TransportError) as error:
+                if isinstance(error, ServerError) and error.code != 503:
+                    raise
 
-            delay = 5 * attempt
-            print(
-                f"Temporary Gemini API error: {type(error).__name__}. "
-                f"Retrying in {delay} seconds...",
-                flush=True,
-            )
-            time.sleep(delay)
+                if attempt == 3:
+                    print(
+                        f"Model {model} unavailable after retries.",
+                        flush=True,
+                    )
+                    break
+
+                delay = 5 * attempt
+                print(
+                    f"Temporary error with {model}. "
+                    f"Retrying in {delay} seconds...",
+                    flush=True,
+                )
+                time.sleep(delay)
+
+    raise RuntimeError(
+        "All configured Gemini models failed after retries."
+    )
