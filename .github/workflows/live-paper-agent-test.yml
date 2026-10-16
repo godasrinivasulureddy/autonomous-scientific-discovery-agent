@@ -5,8 +5,12 @@ on:
   push:
     branches:
       - feature/agent-orchestration
+    
     paths:
       - ".github/workflows/live-paper-agent-test.yml"
+      - "services/gemini_service.py"
+      - "agents/**"
+
   workflow_dispatch:
   # Live integration test: paper retrieval and Gemini agents
 
