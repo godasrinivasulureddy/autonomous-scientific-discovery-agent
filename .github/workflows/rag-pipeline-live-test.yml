@@ -1,0 +1,87 @@
+
+name: RAG Pipeline Live Test
+
+on:
+  push:
+    paths:
+      - ".github/workflows/rag-pipeline-live-test.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-rag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install -r requirements.txt
+
+      - name: Test Pinecone to RAG agents
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+        run: |
+          python - <<'PY'
+          import time
+          import uuid
+
+          from services.vector_store import store_paper, search_papers
+          from agents.rag_orchestrator import run_pinecone_rag_research
+
+          paper_id = f"rag-test-{uuid.uuid4().hex}"
+          title = f"Machine Learning Diabetes Study {paper_id}"
+
+          store_paper(
+              paper_id=paper_id,
+              title=title,
+              text=(
+                  "This scientific study investigates diabetes "
+                  "prediction using random forest and logistic "
+                  "regression models. Model performance is "
+                  "evaluated using precision, recall and F1-score."
+              ),
+              source="rag_integration_test",
+          )
+          print("PINECONE STORAGE PASSED")
+
+          # Allow time for Pinecone indexing.
+          for attempt in range(6):
+              papers = search_papers(
+                  "machine learning diabetes prediction",
+                  top_k=20,
+              )
+              if any(p["title"] == title for p in papers):
+                  break
+              time.sleep(5)
+          else:
+              raise AssertionError("Stored paper not retrieved.")
+
+          print("PINECONE RETRIEVAL PASSED")
+
+          result = run_pinecone_rag_research(
+              research_topic="machine learning diabetes prediction",
+              top_k=3,
+          )
+
+          assert result["literature_review"].strip()
+          assert result["hypothesis"].strip()
+          assert result["retrieval_count"] > 0
+          assert result["experiment"]["status"] == "not_executed"
+
+          print("LANGCHAIN RAG AGENT PASSED")
+          print("Literature review generated successfully")
+          print("Hypothesis generated successfully")
+          print("COMPLETE RAG PIPELINE PASSED")
+          PY
