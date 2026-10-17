@@ -1,0 +1,71 @@
+
+name: Docker Sandbox Live Test
+
+on:
+  push:
+    paths:
+      - ".github/workflows/docker-live-test.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build sandbox image
+        run: docker build -t scientific-agent-sandbox:latest ./sandbox
+
+      - name: Test real Docker execution and restrictions
+        run: |
+          python - <<'PY'
+          from services.docker_sandbox import run_in_sandbox
+
+          result = run_in_sandbox(
+              "print('Docker sandbox working')"
+          )
+          assert result["status"] == "success", result
+          assert "Docker sandbox working" in result["stdout"]
+          print("DOCKER EXECUTION PASSED")
+
+          result = run_in_sandbox(
+              "import os; print(os.getuid())"
+          )
+          assert result["status"] == "success", result
+          assert result["stdout"].strip() == "10001"
+          print("NON-ROOT EXECUTION PASSED")
+
+          result = run_in_sandbox(
+              "open('/sandbox/test.txt', 'w').write('test')"
+          )
+          assert result["status"] == "error", result
+          print("READ-ONLY FILESYSTEM PASSED")
+
+          result = run_in_sandbox(
+              "import socket; s = socket.socket(); "
+              "s.settimeout(2); s.connect(('1.1.1.1', 80))"
+          )
+          assert result["status"] == "error", result
+          print("NETWORK ISOLATION PASSED")
+
+          result = run_in_sandbox(
+              "while True: pass",
+              timeout=2,
+          )
+          assert result["status"] == "timeout", result
+          print("TIMEOUT HANDLING PASSED")
+          PY
+
+      - name: Check no sandbox containers remain
+        run: |
+          if docker ps -a --format '{{.Names}}' | grep '^scientific-sandbox-'; then
+            echo "Sandbox container cleanup failed"
+            exit 1
+          fi
+          echo "CONTAINER CLEANUP PASSED"
