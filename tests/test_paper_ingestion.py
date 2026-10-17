@@ -48,3 +48,62 @@ def test_paper_ingestion():
         source="arxiv",
         url="https://arxiv.org/abs/12345",
     )
+
+
+
+
+def test_duplicate_papers_stored_once():
+    paper = MagicMock()
+    paper.paper_id = "arxiv:12345"
+
+    record = {
+        "title": "Sample Research",
+        "source": "arxiv",
+        "url": "https://arxiv.org/abs/12345",
+        "full_text": "Research paper content.",
+    }
+
+    with (
+        patch(
+            "services.paper_fetcher.search_all",
+            return_value=[paper, paper],
+        ),
+        patch(
+            "services.pdf_processor.process_paper",
+            return_value=record,
+        ),
+        patch("services.vector_store.store_paper") as mock_store,
+    ):
+        result = ingest_research_papers("machine learning")
+
+    assert result["paper_count"] == 1
+    mock_store.assert_called_once()
+
+
+def test_empty_paper_not_stored():
+    paper = MagicMock()
+    paper.paper_id = "arxiv:empty"
+
+    record = {
+        "title": "Empty Paper",
+        "source": "arxiv",
+        "url": "",
+        "full_text": "   ",
+    }
+
+    with (
+        patch(
+            "services.paper_fetcher.search_all",
+            return_value=[paper],
+        ),
+        patch(
+            "services.pdf_processor.process_paper",
+            return_value=record,
+        ),
+        patch("services.vector_store.store_paper") as mock_store,
+    ):
+        result = ingest_research_papers("machine learning")
+
+    assert result["paper_count"] == 0
+    mock_store.assert_not_called()
+
