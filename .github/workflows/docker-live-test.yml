@@ -130,6 +130,36 @@ jobs:
           print("COMPLETE FEEDBACK PIPELINE PASSED")
           PY
 
+
+
+          
+      - name: Test reward-based learning loop
+        run: |
+          python - <<'PY'
+          from agents.orchestrator import run_learning_experiments
+
+          result = run_learning_experiments(
+              experiment_options={
+                  "small_sample": [10, 20, 30, 40],
+                  "large_sample": list(range(20)),
+              },
+              rounds=5,
+          )
+
+          assert result["rounds"] == 5
+          assert len(result["history"]) == 5
+
+          for entry in result["history"]:
+              assert entry["experiment"]["status"] == "success"
+              assert entry["feedback"]["accepted"] is True
+              assert 0 <= entry["reward"] <= 1
+
+          print("REWARD-BASED LEARNING LOOP PASSED")
+          print("EXPERIMENT SELECTION PASSED")
+          print("DOCKER AND FEEDBACK INTEGRATION PASSED")
+          PY
+
+
       - name: Check no sandbox containers remain
         run: |
           if docker ps -a --format '{{.Names}}' | grep '^scientific-sandbox-'; then
