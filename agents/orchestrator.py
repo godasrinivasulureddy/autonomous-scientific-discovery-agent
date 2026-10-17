@@ -99,3 +99,54 @@ def run_research_from_papers(
     result["paper_count"] = len(papers)
 
     return result
+
+
+
+
+def ingest_research_papers(
+    research_topic: str,
+    max_results: int = 3,
+) -> dict:
+    """Fetch scientific papers, process them, and store them in Pinecone."""
+
+    from services.paper_fetcher import search_all
+    from services.pdf_processor import process_paper
+    from services.vector_store import store_paper
+
+    if not research_topic.strip():
+        raise ValueError("Research topic cannot be empty.")
+
+    if max_results < 1:
+        raise ValueError("max_results must be at least 1.")
+
+    papers = search_all(research_topic, max_results=max_results)
+
+    unique_papers = {
+        paper.paper_id: paper
+        for paper in papers
+    }
+
+    stored_papers = []
+
+    for paper in unique_papers.values():
+        record = process_paper(paper)
+
+        if not record["full_text"].strip():
+            continue
+
+        result = store_paper(
+            paper_id=paper.paper_id,
+            title=record["title"],
+            text=record["full_text"],
+            source=record["source"],
+            url=record["url"],
+        )
+
+        stored_papers.append(result)
+
+    return {
+        "research_topic": research_topic,
+        "paper_count": len(stored_papers),
+        "stored_papers": stored_papers,
+    }
+
