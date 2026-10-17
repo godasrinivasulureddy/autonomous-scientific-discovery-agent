@@ -18,7 +18,9 @@ def get_clients():
     pinecone_key = os.getenv("PINECONE_API_KEY")
 
     if not gemini_key or not pinecone_key:
-        raise ValueError("GEMINI_API_KEY and PINECONE_API_KEY are required.")
+        raise ValueError(
+            "GEMINI_API_KEY and PINECONE_API_KEY are required."
+        )
 
     gemini_client = genai.Client(api_key=gemini_key)
     pinecone_client = Pinecone(api_key=pinecone_key)
@@ -45,11 +47,30 @@ def embed_text(text, task_type):
     return response.embeddings[0].values
 
 
+def paper_exists(paper_id):
+    """
+    Check whether the first chunk of a paper exists in Pinecone.
+
+    This supports duplicate prevention for scheduled ingestion.
+    """
+    if not paper_id or not str(paper_id).strip():
+        raise ValueError("Paper ID is required.")
+
+    _, index = get_clients()
+
+    vector_id = f"{paper_id}-chunk-0"
+
+    response = index.fetch(ids=[vector_id])
+
+    return vector_id in response.vectors
+
 
 def store_paper(paper_id, title, text, source, url=""):
     """Split a scientific paper into chunks and store them in Pinecone."""
     if not paper_id or not title or not text or not text.strip():
-        raise ValueError("Paper ID, title, and text are required.")
+        raise ValueError(
+            "Paper ID, title, and text are required."
+        )
 
     chunks = chunk_text(text)
     _, index = get_clients()
@@ -57,7 +78,10 @@ def store_paper(paper_id, title, text, source, url=""):
     vectors = []
 
     for chunk_number, chunk in enumerate(chunks):
-        embedding = embed_text(chunk, "RETRIEVAL_DOCUMENT")
+        embedding = embed_text(
+            chunk,
+            "RETRIEVAL_DOCUMENT",
+        )
 
         vectors.append(
             {
@@ -78,7 +102,9 @@ def store_paper(paper_id, title, text, source, url=""):
     batch_size = 50
 
     for start in range(0, len(vectors), batch_size):
-        index.upsert(vectors=vectors[start:start + batch_size])
+        index.upsert(
+            vectors=vectors[start:start + batch_size]
+        )
 
     return {
         "status": "stored",
@@ -87,15 +113,25 @@ def store_paper(paper_id, title, text, source, url=""):
     }
 
 
-
 def search_papers(query, top_k=3):
     """Find scientifically relevant papers using vector similarity."""
     if not query or not query.strip():
         raise ValueError("Search query cannot be empty.")
-    if not isinstance(top_k, int) or isinstance(top_k, bool) or top_k < 1:
-        raise ValueError("top_k must be a positive integer.")
 
-    vector = embed_text(query, "RETRIEVAL_QUERY")
+    if (
+        not isinstance(top_k, int)
+        or isinstance(top_k, bool)
+        or top_k < 1
+    ):
+        raise ValueError(
+            "top_k must be a positive integer."
+        )
+
+    vector = embed_text(
+        query,
+        "RETRIEVAL_QUERY",
+    )
+
     _, index = get_clients()
 
     results = index.query(
@@ -116,16 +152,23 @@ def search_papers(query, top_k=3):
     ]
 
 
-
-
-def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 150) -> list[str]:
+def chunk_text(
+    text: str,
+    chunk_size: int = 1000,
+    overlap: int = 150,
+) -> list[str]:
     """Split long research papers into overlapping text chunks."""
-
     if not text or not text.strip():
         raise ValueError("Paper text cannot be empty.")
 
-    if chunk_size <= 0 or overlap < 0 or overlap >= chunk_size:
-        raise ValueError("Invalid chunk size or overlap.")
+    if (
+        chunk_size <= 0
+        or overlap < 0
+        or overlap >= chunk_size
+    ):
+        raise ValueError(
+            "Invalid chunk size or overlap."
+        )
 
     chunks = []
     step = chunk_size - overlap
@@ -140,4 +183,3 @@ def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 150) -> list[st
             break
 
     return chunks
-
