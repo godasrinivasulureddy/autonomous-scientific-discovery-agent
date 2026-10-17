@@ -85,3 +85,5 @@ jobs:
           print("Hypothesis generated successfully")
           print("COMPLETE RAG PIPELINE PASSED")
           PY
+
+# Rerun RAG pipeline after chunking integration
