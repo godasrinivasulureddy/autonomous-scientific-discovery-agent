@@ -2,6 +2,9 @@
 name: PubMed Ingestion Live Test
 
 on:
+  push:
+    paths:
+      - ".github/workflows/pubmed-ingestion-live-test.yml"
   workflow_dispatch:
 
 permissions:
