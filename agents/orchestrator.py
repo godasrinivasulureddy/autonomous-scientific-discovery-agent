@@ -179,8 +179,9 @@ def run_experiment_with_feedback(
 def run_learning_experiments(
     experiment_options: dict[str, list[float]],
     rounds: int = 3,
+    history_path: str = "data/learning_history.json",
 ) -> dict:
-    """Learn which approved experiment configuration receives higher rewards."""
+    """Run approved experiments and persist reward-based learning."""
 
     from agents.experiment_selector import ExperimentSelector
 
@@ -191,6 +192,10 @@ def run_learning_experiments(
         raise ValueError("Rounds must be a positive integer.")
 
     selector = ExperimentSelector(exploration_rate=0.2)
+
+    # Restore rewards from previous runs.
+    selector.load(history_path)
+
     history = []
 
     for _ in range(rounds):
@@ -210,6 +215,9 @@ def run_learning_experiments(
             "feedback": result["feedback"],
         })
 
+    # Save updated rewards for the next run.
+    selector.save(history_path)
+
     return {
         "rounds": rounds,
         "history": history,
@@ -218,4 +226,3 @@ def run_learning_experiments(
             for name in experiment_options
         },
     }
-
