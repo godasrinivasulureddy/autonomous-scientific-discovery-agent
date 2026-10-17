@@ -45,30 +45,47 @@ def embed_text(text, task_type):
     return response.embeddings[0].values
 
 
+
 def store_paper(paper_id, title, text, source, url=""):
-    """Store a scientific paper in Pinecone."""
+    """Split a scientific paper into chunks and store them in Pinecone."""
     if not paper_id or not title or not text or not text.strip():
         raise ValueError("Paper ID, title, and text are required.")
 
-    vector = embed_text(text, "RETRIEVAL_DOCUMENT")
+    chunks = chunk_text(text)
     _, index = get_clients()
 
-    index.upsert(
-        vectors=[
+    vectors = []
+
+    for chunk_number, chunk in enumerate(chunks):
+        embedding = embed_text(chunk, "RETRIEVAL_DOCUMENT")
+
+        vectors.append(
             {
-                "id": str(paper_id),
-                "values": vector,
+                "id": f"{paper_id}-chunk-{chunk_number}",
+                "values": embedding,
                 "metadata": {
+                    "paper_id": str(paper_id),
+                    "chunk_number": chunk_number,
                     "title": title,
-                    "text": text,
+                    "text": chunk,
                     "source": source,
                     "url": url,
                 },
             }
-        ]
-    )
+        )
 
-    return {"status": "stored", "paper_id": str(paper_id)}
+    # Upload vectors in batches to avoid oversized requests.
+    batch_size = 50
+
+    for start in range(0, len(vectors), batch_size):
+        index.upsert(vectors=vectors[start:start + batch_size])
+
+    return {
+        "status": "stored",
+        "paper_id": str(paper_id),
+        "chunk_count": len(chunks),
+    }
+
 
 
 def search_papers(query, top_k=3):
