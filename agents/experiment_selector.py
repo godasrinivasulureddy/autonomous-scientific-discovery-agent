@@ -2,6 +2,8 @@
 """Select approved experiment configurations using past rewards."""
 
 import random
+import json
+from pathlib import Path
 
 
 class ExperimentSelector:
@@ -47,3 +49,42 @@ class ExperimentSelector:
         rewards = self.rewards.get(experiment_name, [])
 
         return sum(rewards) / len(rewards) if rewards else 0.0
+
+
+
+    def save(self, file_path: str) -> None:
+        """Save reward history to a JSON file."""
+        path = Path(file_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        with path.open("w", encoding="utf-8") as file:
+            json.dump(self.rewards, file, indent=2)
+
+    def load(self, file_path: str) -> None:
+        """Load previously saved reward history."""
+        path = Path(file_path)
+
+        if not path.exists():
+            return
+
+        with path.open("r", encoding="utf-8") as file:
+            data = json.load(file)
+
+        if not isinstance(data, dict):
+            raise ValueError("Invalid learning history format.")
+
+        for name, rewards in data.items():
+            if (
+                not isinstance(name, str)
+                or not isinstance(rewards, list)
+                or any(
+                    isinstance(reward, bool)
+                    or not isinstance(reward, (int, float))
+                    or not 0 <= reward <= 1
+                    for reward in rewards
+                )
+            ):
+                raise ValueError("Invalid reward history.")
+
+        self.rewards = data
+
