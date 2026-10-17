@@ -60,3 +60,37 @@ def test_docker_unavailable():
 
     assert result["status"] == "error"
     assert "Docker" in result["stderr"]
+
+
+
+def test_timeout_removes_docker_container():
+    """Verify that a timed-out container is force-removed."""
+
+    with patch(
+        "services.docker_sandbox.subprocess.run",
+        side_effect=[
+            TimeoutExpired(cmd="docker", timeout=10),
+            CompletedProcess(
+                args=[],
+                returncode=0,
+                stdout="",
+                stderr="",
+            ),
+        ],
+    ) as mock_run:
+        result = run_in_sandbox("while True: pass")
+
+    assert result["status"] == "timeout"
+    assert mock_run.call_count == 2
+
+    run_command = mock_run.call_args_list[0].args[0]
+    cleanup_command = mock_run.call_args_list[1].args[0]
+
+    container_name = run_command[
+        run_command.index("--name") + 1
+    ]
+
+    assert cleanup_command == [
+        "docker", "rm", "-f", container_name
+    ]
+
