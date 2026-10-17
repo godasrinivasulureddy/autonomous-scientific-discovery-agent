@@ -1,0 +1,64 @@
+
+name: Pinecone Live Integration Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-pinecone:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install project dependencies
+        run: |
+          python -m pip install -r requirements.txt
+
+      - name: Test Gemini embeddings and Pinecone
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+        run: |
+          python - <<'PY'
+          import uuid
+          from services.vector_store import store_paper, search_papers
+
+          paper_id = f"test-{uuid.uuid4().hex[:12]}"
+          topic = "machine learning diabetes prediction"
+
+          result = store_paper(
+              paper_id=paper_id,
+              title="Diabetes Prediction Using Machine Learning",
+              text=(
+                  "Machine learning models such as random forests "
+                  "and logistic regression can analyze clinical "
+                  "features to predict diabetes risk."
+              ),
+              source="integration_test",
+              url="",
+          )
+
+          assert result["status"] == "stored"
+          print("PINECONE STORAGE PASSED")
+
+          results = search_papers(topic, top_k=10)
+
+          assert any(
+              paper["title"] == "Diabetes Prediction Using Machine Learning"
+              for paper in results
+          ), "Stored paper was not found in search results."
+
+          print("PINECONE SEMANTIC SEARCH PASSED")
+          print("Retrieved papers:", len(results))
+          PY
