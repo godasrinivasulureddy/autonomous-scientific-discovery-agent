@@ -150,3 +150,25 @@ def ingest_research_papers(
         "stored_papers": stored_papers,
     }
 
+
+
+
+def run_experiment_with_feedback(
+    values: list[float],
+) -> dict:
+    """Run approved statistics in Docker and evaluate the result."""
+
+    from agents.code_executor import execute_experiment_in_docker
+    from agents.feedback_agent import evaluate_experiment
+
+    experiment_result = execute_experiment_in_docker(
+        experiment_name="descriptive_statistics",
+        values=values,
+    )
+
+    feedback = evaluate_experiment(experiment_result)
+
+    return {
+        "experiment": experiment_result,
+        "feedback": feedback,
+    }
