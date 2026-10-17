@@ -62,8 +62,6 @@ jobs:
           print("TIMEOUT HANDLING PASSED")
           PY
 
-
-
       - name: Test approved statistical experiment in Docker
         run: |
           python - <<'PY'
@@ -94,8 +92,32 @@ jobs:
               )
           PY
 
+      - name: Test Docker experiment feedback pipeline
+        run: |
+          python - <<'PY'
+          from agents.orchestrator import run_experiment_with_feedback
 
+          result = run_experiment_with_feedback(
+              values=[10, 20, 30, 40],
+          )
 
+          experiment = result["experiment"]
+          feedback = result["feedback"]
+
+          assert experiment["status"] == "success", experiment
+          assert experiment["sample_size"] == 4
+          assert experiment["mean"] == 25
+          assert round(experiment["standard_deviation"], 2) == 12.91
+
+          assert feedback["accepted"] is True
+          assert feedback["reward"] == 0.04
+          assert feedback["feedback"]
+
+          print("DOCKER EXPERIMENT PASSED")
+          print("FEEDBACK AGENT PASSED")
+          print("REWARD CALCULATION PASSED")
+          print("COMPLETE FEEDBACK PIPELINE PASSED")
+          PY
 
       - name: Check no sandbox containers remain
         run: |
