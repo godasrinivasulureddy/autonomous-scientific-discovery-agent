@@ -2,6 +2,7 @@
 """Connect retrieved research context to the existing LangChain workflow."""
 
 from agents.orchestrator import run_research_workflow
+from services.vector_store import search_papers as pinecone_search_papers
 
 
 def run_rag_research(
@@ -44,3 +45,18 @@ def run_rag_research(
     result["retrieval_count"] = len(retrieved_papers)
 
     return result
+
+
+
+
+def run_pinecone_rag_research(
+    research_topic: str,
+    top_k: int = 3,
+) -> dict:
+    """Run the research agents using papers retrieved from Pinecone."""
+    return run_rag_research(
+        research_topic=research_topic,
+        search_papers=pinecone_search_papers,
+        top_k=top_k,
+    )
+
