@@ -1,0 +1,60 @@
+
+name: Scheduled Ingestion Live Test
+
+on:
+  push:
+    paths:
+      - ".github/workflows/scheduled-ingestion-live-test.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-scheduled-ingestion:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Execute scheduled ingestion
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+          INGESTION_TOPIC: "machine learning drug discovery"
+          INGESTION_MAX_RESULTS: "2"
+        run: python -m services.scheduled_ingestion
+
+      - name: Verify both research sources
+        env:
+          INGESTION_TOPIC: "machine learning drug discovery"
+        run: |
+          python - <<'PY'
+          import os
+          from services.paper_fetcher import (
+              search_arxiv,
+              search_pubmed,
+          )
+
+          topic = os.environ["INGESTION_TOPIC"]
+
+          arxiv_papers = search_arxiv(topic, max_results=2)
+          pubmed_papers = search_pubmed(topic, max_results=2)
+
+          assert arxiv_papers, "ArXiv returned no papers."
+          assert pubmed_papers, "PubMed returned no papers."
+
+          print("ARXIV SOURCE PASSED")
+          print("PUBMED SOURCE PASSED")
+          print("SCHEDULED INGESTION LIVE TEST PASSED")
+          PY
