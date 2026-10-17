@@ -1,18 +1,9 @@
 
 name: Live Paper-to-Agent Test
 
+# Run manually to avoid exhausting Gemini free-tier quota.
 on:
-  push:
-    branches:
-      - feature/agent-orchestration
-    
-    paths:
-      - ".github/workflows/live-paper-agent-test.yml"
-      - "services/gemini_service.py"
-      - "agents/**"
-
   workflow_dispatch:
-  # Live integration test: paper retrieval and Gemini agents
 
 permissions:
   contents: read
@@ -56,12 +47,8 @@ jobs:
           assert result["hypothesis"].strip()
           assert result["experiment"]["status"] == "not_executed"
 
-
           print("LIVE PAPER-TO-AGENT TEST PASSED")
           print("Papers found:", result["paper_count"])
           print("Literature review:", result["literature_review"][:300])
           print("Hypothesis:", result["hypothesis"][:300])
           PY
-
-# Retest with Gemini 503 retry handling
-# Retest after fixing Gemini connection handling
