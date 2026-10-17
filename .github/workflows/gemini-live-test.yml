@@ -1,5 +1,5 @@
 
-name: Gemini Model Availability Check
+name: Gemini Live API and Model Availability Test
 
 on:
   push:
@@ -9,9 +9,13 @@ on:
       - ".github/workflows/gemini-live-test.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  check-models:
+  test-gemini:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -22,10 +26,11 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Gemini SDK
-        run: python -m pip install google-genai
+      - name: Install dependencies
+        run: |
+          python -m pip install -r requirements.txt
 
-      - name: List available Gemini models
+      - name: Verify Gemini model availability
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
@@ -33,11 +38,35 @@ jobs:
           import os
           from google import genai
 
-          client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+          client = genai.Client(
+              api_key=os.environ["GEMINI_API_KEY"]
+          )
 
-          for model in client.models.list():
-              name = model.name
-              actions = getattr(model, "supported_actions", [])
-              if "generateContent" in actions:
-                  print(name)
+          models = list(client.models.list())
+
+          assert models, "No Gemini models returned."
+
+          print(
+              f"GEMINI MODEL AVAILABILITY PASSED: "
+              f"{len(models)} models found"
+          )
+          PY
+
+      - name: Test real Gemini response
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python - <<'PY'
+          from services.gemini_service import generate_response
+
+          result = generate_response(
+              "Reply with exactly: Gemini connection successful"
+          )
+
+          print("Gemini response:", result)
+
+          if not isinstance(result, str) or not result.strip():
+              raise RuntimeError("Gemini returned an empty response.")
+
+          print("LIVE GEMINI API TEST PASSED")
           PY
