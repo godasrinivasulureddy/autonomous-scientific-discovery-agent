@@ -6,3 +6,6 @@ pymupdf
 chromadb
 streamlit
 pytest
+langchain-core
+pinecone
+

@@ -1,0 +1,64 @@
+
+import pytest
+
+from agents.feedback_agent import evaluate_experiment
+
+
+def test_successful_experiment():
+    result = {
+        "experiment": "descriptive_statistics",
+        "status": "success",
+        "sample_size": 50,
+        "mean": 25.0,
+        "standard_deviation": 5.0,
+    }
+
+    feedback = evaluate_experiment(result)
+
+    assert feedback["reward"] == 0.5
+    assert feedback["accepted"] is True
+    assert feedback["feedback"]
+
+
+def test_failed_experiment():
+    feedback = evaluate_experiment({
+        "experiment": "descriptive_statistics",
+        "status": "error",
+    })
+
+    assert feedback["reward"] == 0.0
+    assert feedback["accepted"] is False
+
+
+def test_invalid_experiment_rejected():
+    with pytest.raises(ValueError):
+        evaluate_experiment({
+            "experiment": "unknown_experiment",
+            "status": "success",
+            "sample_size": 10,
+            "mean": 5.0,
+            "standard_deviation": 1.0,
+        })
+
+
+def test_invalid_statistics_rejected():
+    with pytest.raises(ValueError):
+        evaluate_experiment({
+            "experiment": "descriptive_statistics",
+            "status": "success",
+            "sample_size": 1,
+            "mean": 5.0,
+            "standard_deviation": 1.0,
+        })
+
+
+def test_reward_is_capped():
+    feedback = evaluate_experiment({
+        "experiment": "descriptive_statistics",
+        "status": "success",
+        "sample_size": 200,
+        "mean": 25.0,
+        "standard_deviation": 5.0,
+    })
+
+    assert feedback["reward"] == 1.0

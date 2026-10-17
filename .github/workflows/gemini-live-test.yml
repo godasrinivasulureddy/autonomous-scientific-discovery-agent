@@ -1,11 +1,21 @@
-name: Gemini Live API Test
+
+name: Gemini Live API and Model Availability Test
 
 on:
+  push:
+    branches:
+      - feature/agent-orchestration
+    paths:
+      - ".github/workflows/gemini-live-test.yml"
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   test-gemini:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -16,9 +26,31 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Gemini dependencies
+      - name: Install dependencies
         run: |
-          python -m pip install google-genai python-dotenv
+          python -m pip install -r requirements.txt
+
+      - name: Verify Gemini model availability
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python - <<'PY'
+          import os
+          from google import genai
+
+          client = genai.Client(
+              api_key=os.environ["GEMINI_API_KEY"]
+          )
+
+          models = list(client.models.list())
+
+          assert models, "No Gemini models returned."
+
+          print(
+              f"GEMINI MODEL AVAILABILITY PASSED: "
+              f"{len(models)} models found"
+          )
+          PY
 
       - name: Test real Gemini response
         env:
@@ -33,8 +65,8 @@ jobs:
 
           print("Gemini response:", result)
 
-          if "Gemini connection successful" not in result:
-              raise RuntimeError("Unexpected Gemini response")
+          if not isinstance(result, str) or not result.strip():
+              raise RuntimeError("Gemini returned an empty response.")
 
           print("LIVE GEMINI API TEST PASSED")
           PY

@@ -1,0 +1,76 @@
+
+name: PubMed Ingestion Live Test
+
+on:
+  push:
+    paths:
+      - ".github/workflows/pubmed-ingestion-live-test.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-pubmed-ingestion:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Test real PubMed ingestion into Pinecone
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+        run: |
+          python - <<'PY'
+          import time
+          from services.paper_fetcher import search_pubmed
+          from services.vector_store import store_paper, paper_exists
+
+          papers = [
+              p for p in search_pubmed(
+                  "machine learning drug discovery",
+                  max_results=5,
+              )
+              if p.abstract.strip()
+              and p.abstract != "(no abstract available)"
+          ]
+
+          assert papers, "No PubMed paper with an abstract found."
+          paper = papers[0]
+
+          result = store_paper(
+              paper_id=paper.paper_id,
+              title=paper.title,
+              text=paper.abstract,
+              source=paper.source,
+              url=paper.url,
+          )
+
+          assert result["status"] == "stored"
+          assert result["chunk_count"] >= 1
+
+          for attempt in range(6):
+              if paper_exists(paper.paper_id):
+                  print("LIVE PUBMED INGESTION PASSED")
+                  print(f"Paper ID: {paper.paper_id}")
+                  print(f"Title: {paper.title}")
+                  print(f"Chunks: {result['chunk_count']}")
+                  break
+
+              time.sleep(5)
+          else:
+              raise AssertionError(
+                  "PubMed paper was not found in Pinecone."
+              )
+          PY
