@@ -62,6 +62,41 @@ jobs:
           print("TIMEOUT HANDLING PASSED")
           PY
 
+
+
+      - name: Test approved statistical experiment in Docker
+        run: |
+          python - <<'PY'
+          from agents.code_executor import execute_experiment_in_docker
+
+          result = execute_experiment_in_docker(
+              experiment_name="descriptive_statistics",
+              values=[10, 20, 30, 40],
+          )
+
+          assert result["status"] == "success", result
+          assert result["sample_size"] == 4
+          assert result["mean"] == 25
+          assert round(result["standard_deviation"], 2) == 12.91
+
+          print("APPROVED DOCKER EXPERIMENT PASSED")
+
+          try:
+              execute_experiment_in_docker(
+                  experiment_name="unapproved_experiment",
+                  values=[10, 20, 30],
+              )
+          except ValueError:
+              print("UNAPPROVED EXPERIMENT REJECTED")
+          else:
+              raise AssertionError(
+                  "Unapproved experiment was not rejected."
+              )
+          PY
+
+
+
+
       - name: Check no sandbox containers remain
         run: |
           if docker ps -a --format '{{.Names}}' | grep '^scientific-sandbox-'; then
