@@ -1,0 +1,81 @@
+
+name: Paper Ingestion Live Test
+
+on:
+  push:
+    paths:
+      - ".github/workflows/paper-ingestion-live-test.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-ingestion:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Test real arXiv ingestion into Pinecone
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+        run: |
+          python - <<'PY'
+          import time
+          from services.paper_fetcher import search_all
+          from services.vector_store import store_paper, search_papers
+
+          papers = [
+              p for p in search_all(
+                  "machine learning",
+                  max_results=1,
+              )
+              if p.source == "arxiv" and p.abstract.strip()
+          ]
+
+          assert papers, "No arXiv paper with an abstract found."
+          paper = papers[0]
+
+          result = store_paper(
+              paper_id=paper.paper_id,
+              title=paper.title,
+              text=paper.abstract,
+              source=paper.source,
+              url=paper.url,
+          )
+
+          assert result["status"] == "stored"
+          assert result["chunk_count"] >= 1
+          print("LIVE PAPER INGESTION PASSED")
+
+          for attempt in range(6):
+              matches = search_papers(
+                  paper.title,
+                  top_k=20,
+              )
+
+              if any(
+                  match["title"] == paper.title
+                  for match in matches
+              ):
+                  print("LIVE PAPER RETRIEVAL PASSED")
+                  break
+
+              time.sleep(5)
+          else:
+              raise AssertionError(
+                  "Ingested paper was not found in Pinecone."
+              )
+          PY
