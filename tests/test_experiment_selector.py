@@ -105,6 +105,71 @@ def test_load_invalid_history_file(tmp_path):
         encoding="utf-8",
     )
 
+
+
+
+def test_learning_orchestrator_persists_history(tmp_path, monkeypatch):
+    """Verify rewards are saved and restored across separate runs."""
+
+    from agents import orchestrator
+    from agents.experiment_selector import ExperimentSelector
+
+    history_file = tmp_path / "learning_history.json"
+
+    def fake_experiment(values):
+        return {
+            "experiment": {
+                "status": "success",
+                "sample_size": len(values),
+            },
+            "feedback": {
+                "accepted": True,
+                "reward": len(values) / 100,
+                "feedback": "Test feedback",
+            },
+        }
+
+    monkeypatch.setattr(
+        orchestrator,
+        "run_experiment_with_feedback",
+        fake_experiment,
+    )
+
+    options = {
+        "small_sample": [10, 20, 30, 40],
+    }
+
+    # First run: create learning history.
+    first = orchestrator.run_learning_experiments(
+        experiment_options=options,
+        rounds=2,
+        history_path=str(history_file),
+    )
+
+    assert first["rounds"] == 2
+    assert history_file.exists()
+
+    selector = ExperimentSelector()
+    selector.load(str(history_file))
+
+    assert len(selector.rewards["small_sample"]) == 2
+
+    # Second run: restore history and add another reward.
+    second = orchestrator.run_learning_experiments(
+        experiment_options=options,
+        rounds=1,
+        history_path=str(history_file),
+    )
+
+    assert second["rounds"] == 1
+
+    selector = ExperimentSelector()
+    selector.load(str(history_file))
+
+    assert len(selector.rewards["small_sample"]) == 3
+    assert selector.average_reward("small_sample") == 0.04
+
+
     selector = ExperimentSelector()
 
     with pytest.raises(ValueError):
