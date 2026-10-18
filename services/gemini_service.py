@@ -91,3 +91,4 @@ def generate_response(prompt: str) -> str:
         "All configured Gemini models failed. "
         "Check model availability and API quotas."
     )
+
