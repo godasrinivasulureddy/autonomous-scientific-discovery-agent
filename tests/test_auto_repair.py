@@ -108,3 +108,72 @@ def test_timeout_does_not_retry(mock_sandbox, mock_correct):
 def test_reject_invalid_retry_limit():
     with pytest.raises(ValueError):
         run_with_auto_repair(SAFE_CODE, max_corrections=5)
+
+
+
+
+def test_reject_function_reassignment():
+    with pytest.raises(CodeCorrectionError):
+        validate_repair_policy("print = 123")
+
+
+def test_reject_unknown_variable():
+    with pytest.raises(CodeCorrectionError):
+        validate_repair_policy("print(secret_value)")
+
+
+def test_reject_subprocess_execution():
+    with pytest.raises(CodeCorrectionError):
+        validate_repair_policy(
+            "__import__('os').system('whoami')"
+        )
+
+
+def test_reject_attribute_access():
+    with pytest.raises(CodeCorrectionError):
+        validate_repair_policy("print.__class__")
+
+
+def test_reject_unapproved_loop():
+    with pytest.raises(CodeCorrectionError):
+        validate_repair_policy(
+            "for i in range(5):\n    print(i)"
+        )
+
+
+@patch("agents.auto_repair.correct_python_code")
+@patch("agents.auto_repair.run_in_sandbox")
+def test_docker_unavailable_does_not_retry(
+    mock_sandbox, mock_correct
+):
+    mock_sandbox.return_value = {
+        "status": "error",
+        "stdout": "",
+        "stderr": "Docker is not installed or unavailable.",
+    }
+
+    result = run_with_auto_repair(SAFE_CODE)
+
+    assert result["status"] == "failed"
+    assert result["attempts"] == 1
+    mock_correct.assert_not_called()
+
+
+@patch("agents.auto_repair.correct_python_code")
+@patch("agents.auto_repair.run_in_sandbox")
+def test_unsafe_gemini_correction_is_rejected(
+    mock_sandbox, mock_correct
+):
+    mock_sandbox.return_value = {
+        "status": "error",
+        "stdout": "",
+        "stderr": "NameError",
+    }
+    mock_correct.return_value = "import os"
+
+    result = run_with_auto_repair(SAFE_CODE)
+
+    assert result["status"] == "repair_failed"
+    assert result["attempts"] == 1
+    assert mock_sandbox.call_count == 1
+
