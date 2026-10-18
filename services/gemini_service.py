@@ -87,7 +87,9 @@ def generate_response(prompt: str) -> str:
                 )
                 time.sleep(delay)
 
+    
     raise RuntimeError(
-        "All configured Gemini models failed. "
+        "All configured Gemini models failed after retries. "
         "Check model availability and API quotas."
     )
+
