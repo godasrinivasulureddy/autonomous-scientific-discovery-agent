@@ -87,6 +87,8 @@ def validate_repair_policy(code: str) -> str:
             if isinstance(function, ast.Name):
                 name = function.id
             elif isinstance(function, ast.Attribute):
+                if not isinstance(function.value, ast.Name):
+                    raise CodeCorrectionError("Unapproved chained function call.")
                 name = f"{function.value.id}.{function.attr}"
             else:
                 raise CodeCorrectionError("Unapproved function call.")
