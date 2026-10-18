@@ -58,7 +58,8 @@ def correct_python_code(
 ) -> str:
     """Ask Gemini to suggest a syntax-checked correction."""
 
-    validate_python_syntax(original_code)
+    if not isinstance(original_code, str) or not original_code.strip():
+        raise ValueError("Original Python code cannot be empty.")
 
     if not isinstance(error_message, str) or not error_message.strip():
         raise ValueError("An execution error message is required.")
