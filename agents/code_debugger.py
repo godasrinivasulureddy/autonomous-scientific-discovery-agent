@@ -4,8 +4,7 @@
 import ast
 import re
 
-from services.gemini_service import generate_text
-
+from services.gemini_service import generate_response
 
 class CodeCorrectionError(Exception):
     """Raised when a proposed code correction cannot be accepted."""
@@ -74,6 +73,6 @@ def correct_python_code(
         f"Execution error:\n{error_message}\n"
     )
 
-    response = generate_text(prompt)
+    response = generate_response(prompt)
 
     return extract_python_code(response)
