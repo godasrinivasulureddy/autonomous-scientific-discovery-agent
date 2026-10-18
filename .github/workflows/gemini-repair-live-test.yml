@@ -1,0 +1,46 @@
+
+name: Gemini Code Repair Live Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-gemini-repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Test live Gemini code correction
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python - <<'PY'
+          from agents.code_debugger import correct_python_code
+          from agents.auto_repair import validate_repair_policy
+
+          broken_code = "print(sum([10, 20, missing_value]))"
+
+          corrected_code = correct_python_code(
+              original_code=broken_code,
+              error_message="NameError: name 'missing_value' is not defined",
+          )
+
+          validate_repair_policy(corrected_code)
+
+          print("LIVE GEMINI CORRECTION PASSED")
+          print("CORRECTED CODE POLICY VALIDATION PASSED")
+          PY
