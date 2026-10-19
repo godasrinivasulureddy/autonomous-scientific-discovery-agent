@@ -57,6 +57,4 @@ jobs:
           PY
 
 
-          print("LIVE GEMINI CORRECTION PASSED")
-          print("CORRECTED CODE POLICY VALIDATION PASSED")
-          PY
+      
