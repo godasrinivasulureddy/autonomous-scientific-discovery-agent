@@ -35,16 +35,23 @@ jobs:
           from agents.code_debugger import correct_python_code
           from agents.auto_repair import validate_repair_policy
 
-          
           broken_code = "print(10 / 0)"
-          
+
           corrected_code = correct_python_code(
               original_code=broken_code,
               error_message="ZeroDivisionError: division by zero",
           )
-          
-          validate_repair_policy(corrected_code)
-          
+
+          print("Gemini correction received.")
+          print("Validating corrected code against the security policy...")
+
+          try:
+              validate_repair_policy(corrected_code)
+          except Exception as exc:
+              print(f"CORRECTION REJECTED BY SECURITY POLICY: {exc}")
+              print("Generated code was not executed.")
+              raise
+
           print("LIVE GEMINI CORRECTION PASSED")
           print("CORRECTED CODE POLICY VALIDATION PASSED")
-
+          PY
