@@ -156,6 +156,7 @@ jobs:
           PY
 
 
+
       
       - name: Test automatic code repair with real Docker
         run: |
@@ -164,10 +165,10 @@ jobs:
 
           from agents.auto_repair import run_with_auto_repair
 
-          # Valid Python that fails during execution.
-          broken_code = "print(sum([10, 20, missing_value]))"
+          # Allowed Python that raises an execution-time error.
+          broken_code = "print(10 / 0)"
 
-          # The simulated Gemini response fixes the undefined variable.
+          # Simulated Gemini correction.
           fixed_code = "print(sum([10, 20, 30]))"
 
           with patch(
