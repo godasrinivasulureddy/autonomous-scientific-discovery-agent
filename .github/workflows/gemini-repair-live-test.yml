@@ -3,6 +3,9 @@ name: Gemini Code Repair Live Test
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feature/week2-RL-feedback
 
 permissions:
   contents: read
