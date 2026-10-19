@@ -46,3 +46,43 @@ def evaluate_experiment(result: dict) -> dict:
         "feedback": "Experiment completed with valid statistical output.",
         "accepted": True,
     }
+
+
+
+def evaluate_repair_attempt(result: dict) -> dict:
+    """Assign a bounded reward to a code-repair outcome."""
+
+    if not isinstance(result, dict):
+        raise ValueError("Repair result must be a dictionary.")
+
+    status = result.get("status")
+    attempts = result.get("attempts")
+
+    if (
+        not isinstance(attempts, int)
+        or isinstance(attempts, bool)
+        or attempts < 1
+    ):
+        raise ValueError("Repair attempts must be a positive integer.")
+
+    if status == "success":
+        # Reward successful repairs; prefer fewer attempts.
+        reward = 1.0 / attempts
+        return {
+            "reward": round(reward, 3),
+            "accepted": True,
+            "feedback": (
+                "Code repair succeeded."
+                if attempts == 1
+                else "Code repair succeeded after a retry."
+            ),
+        }
+
+    if status in {"failed", "repair_failed"}:
+        return {
+            "reward": 0.0,
+            "accepted": False,
+            "feedback": "Code repair did not succeed.",
+        }
+
+    raise ValueError("Unsupported repair status.")
