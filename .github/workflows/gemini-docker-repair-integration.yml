@@ -1,0 +1,94 @@
+
+name: Gemini Docker Repair Integration Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/week2-RL-feedback
+    paths:
+      - ".github/workflows/gemini-docker-repair-integration.yml"
+      - "agents/code_debugger.py"
+      - "agents/auto_repair.py"
+      - "services/docker_sandbox.py"
+      - "sandbox/Dockerfile"
+      - "requirements.txt"
+
+permissions:
+  contents: read
+
+jobs:
+  live-gemini-docker-repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Build Docker sandbox
+        run: docker build -t scientific-agent-sandbox:latest ./sandbox
+
+      - name: Test live Gemini correction and real Docker execution
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python - <<'PY'
+          from agents.code_debugger import correct_python_code
+          from agents.auto_repair import validate_repair_policy
+          from services.docker_sandbox import run_in_sandbox
+
+          broken_code = "print(sum([10, 20, missing_value]))"
+
+          print("STEP 1: Requesting correction from live Gemini...")
+
+          corrected_code = correct_python_code(
+              original_code=broken_code,
+              error_message=(
+                  "NameError: name 'missing_value' is not defined. "
+                  "Replace the undefined variable with a valid numeric "
+                  "value so the sum can be calculated."
+              ),
+          )
+
+          print("Gemini returned:")
+          print(corrected_code)
+
+          print("STEP 2: Validating corrected code...")
+          validate_repair_policy(corrected_code)
+
+          if "missing_value" in corrected_code:
+              raise AssertionError(
+                  "Corrected code still contains missing_value."
+              )
+
+          print("STEP 3: Executing that exact code in Docker...")
+          result = run_in_sandbox(corrected_code)
+
+          print("Docker status:", result["status"])
+          print("Docker stdout:", result["stdout"])
+          print("Docker stderr:", result["stderr"])
+
+          if result["status"] != "success":
+              raise AssertionError(
+                  "Corrected code failed in Docker."
+              )
+
+          if result["stdout"].strip() != "30":
+              raise AssertionError(
+                  "Unexpected output; expected 30."
+              )
+
+          print("LIVE GEMINI CORRECTION PASSED")
+          print("REPAIR POLICY VALIDATION PASSED")
+          print("REAL DOCKER EXECUTION PASSED")
+          print("END-TO-END REPAIR INTEGRATION PASSED")
+          PY
