@@ -3,7 +3,7 @@ name: Gemini Code Repair Live Test
 on:
   push:
     branches:
-      - feature/week2-rl-feedback
+      - feature/week2-RL-feedback
     paths:
       - ".github/workflows/gemini-repair-live-test.yml"
       - "agents/code_debugger.py"
