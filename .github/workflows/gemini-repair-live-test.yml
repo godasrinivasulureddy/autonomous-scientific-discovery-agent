@@ -43,13 +43,22 @@ jobs:
 
           corrected_code = correct_python_code(
               original_code=broken_code,
-              error_message="NameError: name 'missing_value' is not defined",
+              error_message=(
+                  "NameError: name 'missing_value' is not defined. "
+                  "Replace the undefined variable with a valid numeric "
+                  "value so the sum can be calculated."
+              ),
           )
+
+          print("Gemini returned:")
+          print(corrected_code)
 
           validate_repair_policy(corrected_code)
 
+          assert "missing_value" not in corrected_code, (
+              "The correction still contains the undefined variable."
+          )
+
           print("LIVE GEMINI API RESPONSE PASSED")
-          print("CORRECTED CODE POLICY VALIDATION PASSED")
-          print("Returned code:")
-          print(corrected_code)
+          print("REPAIR POLICY VALIDATION PASSED")
           PY
