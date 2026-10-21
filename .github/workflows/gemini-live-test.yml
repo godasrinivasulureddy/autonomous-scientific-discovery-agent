@@ -65,6 +65,9 @@ jobs:
 
           print("Gemini response:", result)
 
+
+
+
           if not isinstance(result, str) or not result.strip():
               raise RuntimeError("Gemini returned an empty response.")
 
