@@ -42,10 +42,7 @@ def run_langchain_research(
             data["topic"],
             hypothesis_input,
         )
-        return {
-            **data,
-            "hypothesis": hypothesis,
-        }
+    
 
         return {
             **data,
