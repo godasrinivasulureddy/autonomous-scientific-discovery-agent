@@ -251,3 +251,41 @@ def run_learning_experiments(
             for name in experiment_options
         },
     }
+
+
+
+def run_full_research_pipeline(
+    research_topic: str,
+    max_results: int = 3,
+    top_k: int = 3,
+) -> dict:
+    """Ingest papers into Pinecone, then run research using RAG."""
+
+    from agents.rag_orchestrator import run_pinecone_rag_research
+
+    _validate_research_topic(research_topic)
+    _validate_max_results(max_results)
+
+    if (
+        not isinstance(top_k, int)
+        or isinstance(top_k, bool)
+        or top_k < 1
+    ):
+        raise ValueError("top_k must be a positive integer.")
+
+    ingestion = ingest_research_papers(
+        research_topic=research_topic,
+        max_results=max_results,
+    )
+
+    if ingestion["paper_count"] == 0:
+        raise ValueError("No usable research papers were ingested.")
+
+    research = run_pinecone_rag_research(
+        research_topic=research_topic,
+        top_k=top_k,
+    )
+
+    research["ingestion"] = ingestion
+    research["pipeline_status"] = "completed"
+    return research
