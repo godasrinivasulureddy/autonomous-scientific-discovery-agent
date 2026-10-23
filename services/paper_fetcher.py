@@ -104,6 +104,14 @@ def search_pubmed(topic, max_results=10):
     response.raise_for_status()
 
     root = ET.fromstring(response.content)
+        publication_type_map = {}
+    for article in root.findall(".//PubmedArticle"):
+        pmid = article.findtext(".//MedlineCitation/PMID", default="").strip()
+        publication_type_map[pmid] = [
+            element.text.strip()
+            for element in article.findall(".//PublicationTypeList/PublicationType")
+            if element.text and element.text.strip()
+        ]
     papers = []
 
     for article in root.findall(".//PubmedArticle"):
