@@ -230,3 +230,65 @@ def test_rag_retrieval_supports_multiple_topics(
     assert paper_title in context
     assert paper_text in context
 
+
+
+def test_rag_keeps_citations_linked_to_correct_sources():
+    """Verify each evidence ID retains its own paper and source URL."""
+    papers = [
+        {
+            "paper_id": "paper-A",
+            "title": "Diabetes Prediction Study",
+            "source": "journal-A",
+            "url": "https://example.org/diabetes",
+            "text": "Evidence about diabetes prediction.",
+        },
+        {
+            "paper_id": "paper-B",
+            "title": "Protein Structure Study",
+            "source": "journal-B",
+            "url": "https://example.org/protein",
+            "text": "Evidence about protein structures.",
+        },
+    ]
+
+    with patch(
+        "agents.rag_orchestrator.run_research_workflow",
+        return_value=mock_workflow_result(),
+    ) as mock_workflow:
+        result = run_rag_research(
+            research_topic="Scientific discovery",
+            search_papers=lambda *args, **kwargs: papers,
+            top_k=2,
+        )
+
+    citations = result["citation_metadata"]
+
+    assert citations == [
+        {
+            "evidence_id": 1,
+            "title": "Diabetes Prediction Study",
+            "source": "journal-A",
+            "url": "https://example.org/diabetes",
+        },
+        {
+            "evidence_id": 2,
+            "title": "Protein Structure Study",
+            "source": "journal-B",
+            "url": "https://example.org/protein",
+        },
+    ]
+
+    context = mock_workflow.call_args.kwargs["paper_text"]
+
+    evidence_1 = context.split("Evidence [1]", 1)[1].split(
+        "Evidence [2]", 1
+    )[0]
+    evidence_2 = context.split("Evidence [2]", 1)[1]
+
+    assert "Diabetes Prediction Study" in evidence_1
+    assert "https://example.org/diabetes" in evidence_1
+    assert "Protein Structure Study" in evidence_2
+    assert "https://example.org/protein" in evidence_2
+
+    assert "https://example.org/protein" not in evidence_1
+    assert "https://example.org/diabetes" not in evidence_2
