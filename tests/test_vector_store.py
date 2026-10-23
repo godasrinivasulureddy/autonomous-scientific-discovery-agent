@@ -1,4 +1,3 @@
-
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -79,7 +78,7 @@ def test_search_papers_returns_empty_list_when_no_matches():
     assert results == []
 
 
-@pytest.mark.parametrize("query", ["", "   ", None, 123])
+@pytest.mark.parametrize("query", ["", "    ", None, 123])
 def test_search_papers_rejects_invalid_query(query):
     with pytest.raises(ValueError, match="Search query cannot be empty"):
         search_papers(query)
@@ -92,7 +91,6 @@ def test_search_papers_rejects_invalid_top_k(top_k):
         match="top_k must be a positive integer",
     ):
         search_papers("Diabetes prediction", top_k=top_k)
-
 
 
 def test_search_papers_handles_missing_metadata():
@@ -125,7 +123,6 @@ def test_search_papers_handles_missing_metadata():
     assert results[0]["source"] == ""
     assert results[0]["url"] == ""
     assert results[0]["score"] == 0.75
-
 
 
 def test_search_papers_preserves_multiple_chunks_from_same_paper():
@@ -173,8 +170,6 @@ def test_search_papers_preserves_multiple_chunks_from_same_paper():
     assert results[0]["paper_id"] == results[1]["paper_id"]
     assert results[0]["chunk_number"] == 0
     assert results[1]["chunk_number"] == 1
-
-
 
 
 def test_search_papers_handles_malformed_metadata_values():
