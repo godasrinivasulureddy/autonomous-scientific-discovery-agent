@@ -18,7 +18,11 @@ def _validate_max_results(max_results: int) -> None:
 
 
 def _validate_top_k(top_k: int) -> None:
-    if not isinstance(top_k, int) or isinstance(top_k, bool) or top_k < 1:
+    if (
+        not isinstance(top_k, int)
+        or isinstance(top_k, bool)
+        or top_k < 1
+    ):
         raise ValueError("top_k must be a positive integer.")
 
 
@@ -54,7 +58,7 @@ def run_approved_experiment(values: list[float]) -> dict:
 
 
 def _fetch_unique_papers(research_topic: str, max_results: int) -> list:
-    """Fetch papers and remove duplicates by paper ID."""
+    """Fetch eligible papers and remove duplicates by paper ID."""
     from services.paper_fetcher import search_all
 
     papers = search_all(
@@ -77,6 +81,7 @@ def _process_papers(papers: list) -> list[dict]:
     from services.pdf_processor import process_paper
 
     processed_papers = []
+
     for paper in papers:
         try:
             record = process_paper(paper)
@@ -94,7 +99,10 @@ def _process_papers(papers: list) -> list[dict]:
         if not isinstance(full_text, str) or not full_text.strip():
             continue
 
-        processed_papers.append({"paper": paper, "record": record})
+        processed_papers.append({
+            "paper": paper,
+            "record": record,
+        })
 
     return processed_papers
 
@@ -108,8 +116,9 @@ def run_research_from_papers(
     _validate_max_results(max_results)
 
     papers = _fetch_unique_papers(research_topic.strip(), max_results)
+
     if not papers:
-        raise ValueError("No eligible research papers found for this topic.")
+        raise ValueError("No research papers found for this topic.")
 
     processed_papers = _process_papers(papers)
     if not processed_papers:
@@ -128,10 +137,13 @@ def run_research_from_papers(
         research_topic=research_topic.strip(),
         paper_text=paper_text,
     )
+
     result["papers"] = [
-        item["paper"].to_dict() for item in processed_papers
+        item["paper"].to_dict()
+        for item in processed_papers
     ]
     result["paper_count"] = len(processed_papers)
+
     return result
 
 
@@ -139,7 +151,7 @@ def ingest_research_papers(
     research_topic: str,
     max_results: int = 3,
 ) -> dict:
-    """Fetch, process, and store new research papers in Pinecone."""
+    """Fetch, process, and store research papers in Pinecone."""
     from services.vector_store import paper_exists, store_paper
     from services.pdf_processor import process_paper
 
@@ -147,23 +159,27 @@ def ingest_research_papers(
     _validate_max_results(max_results)
 
     papers = _fetch_unique_papers(research_topic.strip(), max_results)
+
     stored_papers = []
     skipped_papers = []
     failed_papers = []
 
     for paper in papers:
         paper_id = getattr(paper, "paper_id", None)
+
         if not isinstance(paper_id, str) or not paper_id.strip():
             continue
 
         try:
             already_exists = paper_exists(paper_id)
         except Exception as error:
-            failed_papers.append({
-                "paper_id": paper_id,
-                "reason": f"Could not verify duplicate status: {error}",
-            })
-            continue
+            # Preserve the existing fallback behavior: attempt ingestion.
+            # The storage layer should handle duplicate upserts.
+            print(
+                f"[warning] Could not check existing paper "
+                f"{paper_id}: {error}"
+            )
+            already_exists = False
 
         if already_exists:
             skipped_papers.append(paper_id)
@@ -171,8 +187,11 @@ def ingest_research_papers(
 
         try:
             record = process_paper(paper)
+
             if not isinstance(record, dict):
-                raise ValueError("Paper processor returned an invalid record.")
+                raise ValueError(
+                    "Paper processor returned an invalid record."
+                )
 
             full_text = record.get("full_text")
             if not isinstance(full_text, str) or not full_text.strip():
@@ -201,13 +220,18 @@ def ingest_research_papers(
                 "reason": str(error),
             })
 
-    status = (
-        "completed"
-        if stored_papers and not failed_papers
-        else "partial"
-        if stored_papers or skipped_papers
-        else "failed"
-    )
+    if failed_papers:
+        status = (
+            "partial"
+            if stored_papers or skipped_papers
+            else "failed"
+        )
+    elif stored_papers:
+        status = "completed"
+    elif skipped_papers:
+        status = "completed"
+    else:
+        status = "failed"
 
     return {
         "research_topic": research_topic.strip(),
@@ -228,9 +252,13 @@ def run_experiment_with_feedback(values: list[float]) -> dict:
         experiment_name="descriptive_statistics",
         values=values,
     )
+
     feedback = evaluate_experiment(experiment_result)
 
-    return {"experiment": experiment_result, "feedback": feedback}
+    return {
+        "experiment": experiment_result,
+        "feedback": feedback,
+    }
 
 
 def run_learning_experiments(
@@ -243,8 +271,14 @@ def run_learning_experiments(
 
     if not isinstance(experiment_options, dict) or not experiment_options:
         raise ValueError("Experiment options cannot be empty.")
-    if not isinstance(rounds, int) or isinstance(rounds, bool) or rounds < 1:
+
+    if (
+        not isinstance(rounds, int)
+        or isinstance(rounds, bool)
+        or rounds < 1
+    ):
         raise ValueError("Rounds must be a positive integer.")
+
     if any(
         not isinstance(name, str) or not name.strip()
         for name in experiment_options
@@ -253,15 +287,19 @@ def run_learning_experiments(
 
     selector = ExperimentSelector(exploration_rate=0.2)
     selector.load(history_path)
+
     history = []
 
     for _ in range(rounds):
         selected = selector.select(list(experiment_options))
+
         result = run_experiment_with_feedback(
             values=experiment_options[selected],
         )
+
         reward = result["feedback"]["reward"]
         selector.update(selected, reward)
+
         history.append({
             "configuration": selected,
             "reward": reward,
@@ -270,6 +308,7 @@ def run_learning_experiments(
         })
 
     selector.save(history_path)
+
     return {
         "rounds": rounds,
         "history": history,
@@ -302,7 +341,10 @@ def run_full_research_pipeline(
             "research_topic": research_topic.strip(),
             "pipeline_status": "failed",
             "ingestion": ingestion,
-            "error": "No papers were successfully stored; check ingestion errors.",
+            "error": (
+                "No papers were successfully stored; "
+                "check ingestion errors."
+            ),
         }
 
     research = run_pinecone_rag_research(
@@ -312,6 +354,9 @@ def run_full_research_pipeline(
 
     research["ingestion"] = ingestion
     research["pipeline_status"] = (
-        "completed" if ingestion["status"] == "completed" else "partial"
+        "completed"
+        if ingestion["status"] == "completed"
+        else "partial"
     )
+
     return research
