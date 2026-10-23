@@ -162,3 +162,38 @@ def test_hypothesis_rejects_empty_generated_response(mock_generate):
 
     with pytest.raises(ValueError, match="empty response"):
         generate_hypothesis("Treatment A", "Evidence [1]: sample finding.")
+
+
+@patch("agents.hypothesis_generator.generate_response")
+def test_hypothesis_preserves_multiple_evidence_sources(mock_generate):
+    mock_generate.return_value = (
+        "Research Gap\nLimited combined evidence.\n"
+        "Hypothesis\nCombining treatments may improve outcomes.\n"
+        "Supporting Evidence\n"
+        "Evidence [1] supports treatment A.\n"
+        "Evidence [2] supports treatment B.\n"
+        "Variables\nTreatment combination and outcome.\n"
+        "Proposed Experiment\nCompare individual and combined treatments.\n"
+        "Assumptions and Limitations\nFurther validation is required."
+    )
+
+    literature = (
+        "Evidence [1]: Treatment A improved outcome X. "
+        "Source: https://example.org/paper-A\n"
+        "Evidence [2]: Treatment B improved outcome Y. "
+        "Source: https://example.org/paper-B"
+    )
+
+    result = generate_hypothesis(
+        research_topic="Combined treatment effectiveness",
+        literature_review=literature,
+    )
+
+    prompt = mock_generate.call_args.args[0]
+
+    assert "Evidence [1]" in prompt
+    assert "Evidence [2]" in prompt
+    assert "https://example.org/paper-A" in prompt
+    assert "https://example.org/paper-B" in prompt
+    assert "Evidence [1]" in result
+    assert "Evidence [2]" in result
