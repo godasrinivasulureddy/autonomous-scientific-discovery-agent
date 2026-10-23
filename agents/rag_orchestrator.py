@@ -21,7 +21,7 @@ def run_rag_research(
     if not callable(search_papers):
         raise ValueError("search_papers must be callable.")
 
-    retrieved_papers = search_papers(research_topic, top_k=top_k)
+    retrieved_papers = search_papers(research_topic.strip(), top_k=top_k)
 
     if not retrieved_papers:
         raise ValueError("No relevant research papers found.")
@@ -29,45 +29,49 @@ def run_rag_research(
     context_parts = []
     citation_metadata = []
 
-    for index, paper in enumerate(retrieved_papers, start=1):
+    for paper in retrieved_papers:
         if not isinstance(paper, dict):
             raise ValueError("Each retrieved paper must be a dictionary.")
+
+        text = paper.get("text")
+
+        # Skip papers without usable text before assigning an evidence ID.
+        if not isinstance(text, str) or not text.strip():
+            continue
 
         title = paper.get("title")
         source = paper.get("source")
         url = paper.get("url")
-        text = paper.get("text")
 
-        if not isinstance(text, str) or not text.strip():
-            continue
+        title = title.strip() if isinstance(title, str) and title.strip() else "Title unavailable"
+        source = source.strip() if isinstance(source, str) and source.strip() else "Source unavailable"
+        url = url.strip() if isinstance(url, str) and url.strip() else "URL unavailable"
 
-        title = title.strip() if isinstance(title, str) else "Title unavailable"
-        source = source.strip() if isinstance(source, str) else "Source unavailable"
-        url = url.strip() if isinstance(url, str) else "URL unavailable"
+        evidence_id = len(citation_metadata) + 1
 
         context_parts.append(
-            f"Evidence [{index}]\n"
+            f"Evidence [{evidence_id}]\n"
             f"Title: {title}\n"
             f"Source: {source}\n"
             f"URL: {url}\n"
             f"Text: {text.strip()}"
         )
 
-        citation_metadata.append({
-            "evidence_id": index,
-            "title": title,
-            "source": source,
-            "url": url,
-        })
+        citation_metadata.append(
+            {
+                "evidence_id": evidence_id,
+                "title": title,
+                "source": source,
+                "url": url,
+            }
+        )
 
     if not context_parts:
         raise ValueError("Retrieved papers contain no usable text.")
 
-    paper_text = "\n\n".join(context_parts)
-
     result = run_research_workflow(
-        research_topic=research_topic,
-        paper_text=paper_text,
+        research_topic=research_topic.strip(),
+        paper_text="\n\n".join(context_parts),
     )
 
     if not isinstance(result, dict):
