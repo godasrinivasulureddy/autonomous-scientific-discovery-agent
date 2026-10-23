@@ -92,3 +92,36 @@ def test_search_papers_rejects_invalid_top_k(top_k):
         match="top_k must be a positive integer",
     ):
         search_papers("Diabetes prediction", top_k=top_k)
+
+
+
+def test_search_papers_handles_missing_metadata():
+    match = MagicMock()
+    match.score = 0.75
+    match.metadata = None
+
+    pinecone_results = MagicMock()
+    pinecone_results.matches = [match]
+
+    mock_index = MagicMock()
+    mock_index.query.return_value = pinecone_results
+
+    with (
+        patch(
+            "services.vector_store.embed_text",
+            return_value=mock_embedding(),
+        ),
+        patch(
+            "services.vector_store.get_clients",
+            return_value=(MagicMock(), mock_index),
+        ),
+    ):
+        results = search_papers("Research topic")
+
+    assert len(results) == 1
+    assert results[0]["paper_id"] == ""
+    assert results[0]["title"] == ""
+    assert results[0]["text"] == ""
+    assert results[0]["source"] == ""
+    assert results[0]["url"] == ""
+    assert results[0]["score"] == 0.75
