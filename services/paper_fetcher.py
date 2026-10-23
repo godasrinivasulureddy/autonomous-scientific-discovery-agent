@@ -24,6 +24,19 @@ EXCLUDED_PUBLICATION_TYPES = {
     "retraction of publication",
 }
 
+NON_RESEARCH_PUBLICATION_TYPES = {
+    "bibliography",
+    "biography",
+    "case reports",
+    "clinical conference",
+    "congresses",
+    "consensus development conference",
+    "directory",
+    "guideline",
+    "practice guideline",
+    "technical report",
+}
+
 
 @dataclass
 class Paper:
@@ -54,14 +67,17 @@ def search_arxiv(topic, max_results=10, peer_reviewed_only=False):
     """
     Search ArXiv and return structured metadata.
 
-    ArXiv records are marked unverified because the preprint record
-    alone does not establish that the work was peer-reviewed.
+    An ArXiv record alone does not establish peer-review status.
+    Therefore, ArXiv results are excluded when peer-reviewed-only
+    filtering is requested.
     """
     if not isinstance(max_results, int) or isinstance(max_results, bool) or max_results < 1:
         raise ValueError("max_results must be a positive integer.")
 
     if not isinstance(peer_reviewed_only, bool):
         raise ValueError("peer_reviewed_only must be a boolean.")
+
+    query = build_arxiv_query(topic)
 
     if peer_reviewed_only:
         return []
@@ -71,13 +87,15 @@ def search_arxiv(topic, max_results=10, peer_reviewed_only=False):
         delay_seconds=3,
         num_retries=3,
     )
+
     search = arxiv.Search(
-        query=build_arxiv_query(topic),
+        query=query,
         max_results=max_results,
         sort_by=arxiv.SortCriterion.SubmittedDate,
     )
 
     papers = []
+
     for result in client.results(search):
         papers.append(
             Paper(
@@ -97,18 +115,24 @@ def search_arxiv(topic, max_results=10, peer_reviewed_only=False):
 
 
 def _normalize_publication_type(value):
-    """Normalize a publication type for consistent comparisons."""
+    """Normalize publication types for consistent comparisons."""
+    if not isinstance(value, str):
+        return ""
+
     return " ".join(value.casefold().split())
 
 
 def _is_eligible_pubmed_article(publication_types):
     """
-    Apply a conservative metadata filter.
+    Conservatively filter PubMed publication metadata.
 
-    PubMed publication types alone do not prove peer review.
-    This excludes clearly unsuitable types, but eligible articles
-    still require journal-level verification for confirmed status.
+    Eligibility means the available publication types do not identify
+    the record as an excluded publication. It does NOT prove peer review.
+    Journal-level verification is still required for confirmed status.
     """
+    if not isinstance(publication_types, (list, tuple, set)):
+        return False
+
     normalized_types = {
         _normalize_publication_type(value)
         for value in publication_types
@@ -118,32 +142,24 @@ def _is_eligible_pubmed_article(publication_types):
     if not normalized_types:
         return False
 
+    # Reject the record if any listed type is explicitly excluded.
     if normalized_types.intersection(EXCLUDED_PUBLICATION_TYPES):
         return False
 
-    # Exclude records whose available types identify them only as
-    # non-original or non-research material.
-    non_research_types = {
-        "bibliography",
-        "biography",
-        "case reports",
-        "clinical conference",
-        "congresses",
-        "consensus development conference",
-        "directory",
-        "guideline",
-        "practice guideline",
-        "technical report",
-    }
-
-    if normalized_types.issubset(non_research_types):
+    # Reject records identified only by non-research categories.
+    if normalized_types.issubset(NON_RESEARCH_PUBLICATION_TYPES):
         return False
 
     return True
 
 
 def search_pubmed(topic, max_results=10, peer_reviewed_only=False):
-    """Search PubMed and return structured paper metadata."""
+    """
+    Search PubMed and return structured paper metadata.
+
+    peer_reviewed_only applies a conservative publication-type filter.
+    Eligible records are marked eligible_for_verification, not verified.
+    """
     if not isinstance(topic, str) or not topic.strip():
         raise ValueError("Research topic cannot be empty.")
 
@@ -157,7 +173,7 @@ def search_pubmed(topic, max_results=10, peer_reviewed_only=False):
         f"{EUTILS}/esearch.fcgi",
         params={
             "db": "pubmed",
-            "term": topic,
+            "term": topic.strip(),
             "retmax": max_results,
             "retmode": "json",
             "sort": "date",
@@ -167,6 +183,7 @@ def search_pubmed(topic, max_results=10, peer_reviewed_only=False):
     response.raise_for_status()
 
     ids = response.json()["esearchresult"]["idlist"]
+
     if not ids:
         return []
 
@@ -188,7 +205,8 @@ def search_pubmed(topic, max_results=10, peer_reviewed_only=False):
 
     for article in root.findall(".//PubmedArticle"):
         pmid = article.findtext(
-            ".//MedlineCitation/PMID", default=""
+            ".//MedlineCitation/PMID",
+            default="",
         ).strip()
 
         if not pmid:
@@ -221,13 +239,18 @@ def search_pubmed(topic, max_results=10, peer_reviewed_only=False):
         ).strip()
 
         authors = []
+
         for author in article.findall(".//AuthorList/Author"):
             last_name = author.findtext("LastName")
             first_name = author.findtext("ForeName")
+
             if last_name:
-                authors.append(f"{first_name or ''} {last_name}".strip())
+                authors.append(
+                    f"{first_name or ''} {last_name}".strip()
+                )
 
         year = article.findtext(".//JournalIssue/PubDate/Year")
+
         if not year:
             medline_date = article.findtext(
                 ".//JournalIssue/PubDate/MedlineDate"
@@ -244,10 +267,10 @@ def search_pubmed(topic, max_results=10, peer_reviewed_only=False):
                 published=year,
                 source="pubmed",
                 publication_types=publication_types,
-                # This is only a metadata-based eligibility result,
-                # not confirmation that the article was peer-reviewed.
                 peer_review_status=(
-                    "eligible_for_verification" if eligible else "unverified"
+                    "eligible_for_verification"
+                    if eligible
+                    else "unverified"
                 ),
             )
         )
@@ -275,13 +298,12 @@ def search_all(topic, max_results=10, peer_reviewed_only=False):
 
     for name, search_function in search_functions:
         try:
-            papers.extend(
-                search_function(
-                    topic,
-                    max_results,
-                    peer_reviewed_only=peer_reviewed_only,
-                )
+            results = search_function(
+                topic.strip(),
+                max_results,
+                peer_reviewed_only=peer_reviewed_only,
             )
+            papers.extend(results)
         except Exception as error:
             print(f"[warning] {name} search failed: {error}")
 
