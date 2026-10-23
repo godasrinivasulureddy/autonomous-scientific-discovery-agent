@@ -62,13 +62,12 @@ def run_approved_experiment(values: list[float]) -> dict:
     )
 
 
-def _fetch_unique_papers(research_topic: str, max_results: int):
+def _fetch_unique_papers(research_topic: str, max_results: int) -> list:
     """Fetch papers and remove duplicates by paper ID."""
 
     from services.paper_fetcher import search_all
 
     papers = search_all(research_topic, max_results=max_results)
-
     unique_papers = {}
 
     for paper in papers:
@@ -165,6 +164,7 @@ def ingest_research_papers(
     """Fetch, process, and store new research papers in Pinecone."""
 
     from services.vector_store import paper_exists, store_paper
+    from services.pdf_processor import process_paper
 
     _validate_research_topic(research_topic)
     _validate_max_results(max_results)
@@ -184,24 +184,23 @@ def ingest_research_papers(
         if not isinstance(paper_id, str) or not paper_id.strip():
             continue
 
+        # Check for an existing paper. If the check is unavailable,
+        # continue ingestion and let the storage upsert handle duplicates.
         try:
-            if paper_exists(paper_id):
-                skipped_papers.append(paper_id)
-                print(f"[info] Skipping existing paper: {paper_id}")
-                continue
+            already_exists = paper_exists(paper_id)
         except Exception as error:
-            failed_papers.append({
-                "paper_id": paper_id,
-                "reason": f"Could not check existing paper: {error}",
-            })
             print(
-                f"[warning] Could not check paper {paper_id}: {error}"
+                f"[warning] Could not check existing paper "
+                f"{paper_id}: {error}"
             )
+            already_exists = False
+
+        if already_exists:
+            skipped_papers.append(paper_id)
+            print(f"[info] Skipping existing paper: {paper_id}")
             continue
 
         try:
-            from services.pdf_processor import process_paper
-
             record = process_paper(paper)
         except Exception as error:
             failed_papers.append({
@@ -358,8 +357,6 @@ def run_full_research_pipeline(
         max_results=max_results,
     )
 
-    # Existing papers may have been skipped because they are already stored.
-    # Retrieval can still use those papers, so do not require new insertions.
     research = run_pinecone_rag_research(
         research_topic=research_topic.strip(),
         top_k=top_k,
