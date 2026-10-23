@@ -153,3 +153,98 @@ def test_peer_review_filter_rejects_missing_publication_types():
 
 def test_peer_review_filter_accepts_research_article_for_verification():
     assert _is_eligible_pubmed_article(["Journal Article"]) is True
+
+
+
+
+from unittest.mock import Mock, patch
+
+from services.paper_fetcher import search_pubmed
+
+
+def make_pubmed_xml(publication_types, pmid="12345"):
+    types_xml = "".join(
+        f"<PublicationType>{value}</PublicationType>"
+        for value in publication_types
+    )
+    return f"""
+    <PubmedArticleSet>
+      <PubmedArticle>
+        <MedlineCitation>
+          <PMID>{pmid}</PMID>
+          <Article>
+            <Journal>
+              <JournalIssue>
+                <PubDate><Year>2025</Year></PubDate>
+              </JournalIssue>
+            </Journal>
+            <ArticleTitle>Test Research Paper</ArticleTitle>
+            <Abstract>
+              <AbstractText>Test abstract.</AbstractText>
+            </Abstract>
+            <AuthorList>
+              <Author>
+                <ForeName>Jane</ForeName>
+                <LastName>Smith</LastName>
+              </Author>
+            </AuthorList>
+            <PublicationTypeList>{types_xml}</PublicationTypeList>
+          </Article>
+        </MedlineCitation>
+      </PubmedArticle>
+    </PubmedArticleSet>
+    """.encode()
+
+
+def mock_pubmed_responses(xml_content):
+    search_response = Mock()
+    search_response.json.return_value = {
+        "esearchresult": {"idlist": ["12345"]}
+    }
+    search_response.raise_for_status.return_value = None
+
+    fetch_response = Mock()
+    fetch_response.content = xml_content
+    fetch_response.raise_for_status.return_value = None
+
+    return [search_response, fetch_response]
+
+
+@patch("services.paper_fetcher.time.sleep")
+@patch("services.paper_fetcher.requests.get")
+def test_search_pubmed_filters_preprints_when_requested(
+    mock_get, mock_sleep
+):
+    mock_get.side_effect = mock_pubmed_responses(
+        make_pubmed_xml(["Preprint"])
+    )
+
+    papers = search_pubmed(
+        "machine learning",
+        peer_reviewed_only=True,
+    )
+
+    assert papers == []
+
+
+@patch("services.paper_fetcher.time.sleep")
+@patch("services.paper_fetcher.requests.get")
+def test_search_pubmed_returns_eligible_article_metadata(
+    mock_get, mock_sleep
+):
+    mock_get.side_effect = mock_pubmed_responses(
+        make_pubmed_xml(["Journal Article"])
+    )
+
+    papers = search_pubmed(
+        "machine learning",
+        peer_reviewed_only=True,
+    )
+
+    assert len(papers) == 1
+    assert papers[0].paper_id == "pubmed:12345"
+    assert papers[0].title == "Test Research Paper"
+    assert papers[0].authors == ["Jane Smith"]
+    assert papers[0].publication_types == ["Journal Article"]
+    assert papers[0].peer_review_status == "eligible_for_verification"
+
