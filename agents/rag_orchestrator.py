@@ -47,7 +47,6 @@ def run_rag_research(
 
         text = paper.get("text")
 
-        # Skip papers without usable text before assigning an evidence ID.
         if not isinstance(text, str) or not text.strip():
             continue
 
@@ -71,16 +70,6 @@ def run_rag_research(
             else "URL unavailable"
         )
 
-        publication_types = paper.get("publication_types", [])
-        if not isinstance(publication_types, list) or not all(
-            isinstance(item, str) for item in publication_types
-        ):
-            publication_types = []
-
-        peer_review_status = paper.get("peer_review_status", "unverified")
-        if not isinstance(peer_review_status, str):
-            peer_review_status = "unverified"
-
         evidence_id = len(citation_metadata) + 1
 
         context_parts.append(
@@ -97,8 +86,6 @@ def run_rag_research(
                 "title": title,
                 "source": source,
                 "url": url,
-                "publication_types": publication_types,
-                "peer_review_status": peer_review_status,
             }
         )
 
