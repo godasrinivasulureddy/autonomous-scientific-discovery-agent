@@ -145,13 +145,26 @@ def search_papers(query, top_k=3):
     for match in results.matches:
         metadata = match.metadata or {}
 
+        paper_id = metadata.get("paper_id")
+        chunk_number = metadata.get("chunk_number")
+        title = metadata.get("title")
+        text = metadata.get("text")
+        source = metadata.get("source")
+        url = metadata.get("url")
+
         papers.append({
-            "paper_id": metadata.get("paper_id", ""),
-            "chunk_number": metadata.get("chunk_number", 0),
-            "title": metadata.get("title", ""),
-            "text": metadata.get("text", ""),
-            "source": metadata.get("source", ""),
-            "url": metadata.get("url", ""),
+            "paper_id": paper_id if isinstance(paper_id, str) else "",
+            "chunk_number": (
+                chunk_number
+                if isinstance(chunk_number, int)
+                and not isinstance(chunk_number, bool)
+                and chunk_number >= 0
+                else 0
+            ),
+            "title": title if isinstance(title, str) else "",
+            "text": text if isinstance(text, str) else "",
+            "source": source if isinstance(source, str) else "",
+            "url": url if isinstance(url, str) else "",
             "score": match.score,
         })
 
