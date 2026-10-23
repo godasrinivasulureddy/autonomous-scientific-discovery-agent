@@ -1,4 +1,3 @@
-
 from unittest.mock import patch
 
 import pytest
@@ -8,10 +7,12 @@ from agents.rag_orchestrator import run_rag_research
 
 def sample_paper():
     return {
+        "paper_id": "arxiv:example",
         "title": "Diabetes Prediction Using ML",
         "source": "arxiv",
         "url": "https://arxiv.org/abs/example",
         "text": "Machine learning can support diabetes prediction.",
+        "score": 0.92,
     }
 
 
@@ -26,7 +27,6 @@ def mock_workflow_result():
 
 def test_rag_research_integration():
     """Verify evidence and citation metadata reach the workflow."""
-
     papers = [sample_paper()]
 
     def mock_search(query, top_k=3):
@@ -116,10 +116,12 @@ def test_rag_preserves_multiple_papers_and_citations():
     papers = [
         sample_paper(),
         {
+            "paper_id": "pubmed:example",
             "title": "Second Study",
             "source": "pubmed",
             "url": "https://pubmed.ncbi.nlm.nih.gov/example",
             "text": "A second study reports related evidence.",
+            "score": 0.87,
         },
     ]
 
@@ -135,6 +137,7 @@ def test_rag_preserves_multiple_papers_and_citations():
 
     assert result["retrieval_count"] == 2
     assert len(result["citation_metadata"]) == 2
+    assert result["citation_metadata"][0]["evidence_id"] == 1
     assert result["citation_metadata"][1]["evidence_id"] == 2
 
     context = mock_workflow.call_args.kwargs["paper_text"]
@@ -142,3 +145,28 @@ def test_rag_preserves_multiple_papers_and_citations():
     assert "Evidence [2]" in context
     assert "Second Study" in context
     assert "https://pubmed.ncbi.nlm.nih.gov/example" in context
+
+
+def test_rag_skips_blank_paper_and_keeps_evidence_ids_sequential():
+    papers = [
+        {
+            "title": "Blank Paper",
+            "source": "arxiv",
+            "url": "https://example.org/blank",
+            "text": " ",
+        },
+        sample_paper(),
+    ]
+
+    with patch(
+        "agents.rag_orchestrator.run_research_workflow",
+        return_value=mock_workflow_result(),
+    ) as mock_workflow:
+        result = run_rag_research(
+            research_topic="Diabetes prediction",
+            search_papers=lambda *args, **kwargs: papers,
+        )
+
+    assert result["retrieval_count"] == 1
+    assert result["citation_metadata"][0]["evidence_id"] == 1
+    assert "Evidence [1]" in mock_workflow.call_args.kwargs["paper_text"]
