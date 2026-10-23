@@ -85,7 +85,7 @@ def test_hypothesis_uses_literature_and_returns_response():
     prompt = mock_generate.call_args.args[0]
     assert "Treatment effectiveness" in prompt
     assert "Evidence [1] reports an association." in prompt
-    assert "Do not invent papers" in prompt
+    assert "Never invent papers" in prompt
     assert "Supporting Evidence" in prompt
 
 
