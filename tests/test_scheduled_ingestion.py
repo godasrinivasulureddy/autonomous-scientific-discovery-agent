@@ -19,13 +19,11 @@ def make_paper(paper_id="pubmed:12345678"):
     )
 
 
-def test_requires_peer_reviewed_filter(capsys):
-    paper = make_paper()
-
+def test_requires_peer_reviewed_filter():
     with (
         patch(
             "services.scheduled_ingestion.search_all",
-            return_value=[paper],
+            return_value=[make_paper()],
         ) as search,
         patch(
             "services.scheduled_ingestion.paper_exists",
@@ -151,4 +149,3 @@ def test_skips_missing_abstract(capsys):
     output = capsys.readouterr().out
     assert "no abstract" in output
     assert "stored=0, skipped=1, failed=0" in output
-
