@@ -9,6 +9,7 @@ def run_rag_research(
     research_topic: str,
     search_papers,
     top_k: int = 3,
+    peer_reviewed_only: bool = False,
 ) -> dict:
     """Run research using relevant paper chunks from a vector database."""
 
@@ -18,10 +19,21 @@ def run_rag_research(
     if not isinstance(top_k, int) or isinstance(top_k, bool) or top_k < 1:
         raise ValueError("top_k must be a positive integer.")
 
+    if not isinstance(peer_reviewed_only, bool):
+        raise ValueError("peer_reviewed_only must be a boolean.")
+
     if not callable(search_papers):
         raise ValueError("search_papers must be callable.")
 
-    retrieved_papers = search_papers(research_topic.strip(), top_k=top_k)
+    search_args = {"top_k": top_k}
+
+    if peer_reviewed_only:
+        search_args["peer_reviewed_only"] = True
+
+    retrieved_papers = search_papers(
+        research_topic.strip(),
+        **search_args,
+    )
 
     if not retrieved_papers:
         raise ValueError("No relevant research papers found.")
@@ -43,9 +55,31 @@ def run_rag_research(
         source = paper.get("source")
         url = paper.get("url")
 
-        title = title.strip() if isinstance(title, str) and title.strip() else "Title unavailable"
-        source = source.strip() if isinstance(source, str) and source.strip() else "Source unavailable"
-        url = url.strip() if isinstance(url, str) and url.strip() else "URL unavailable"
+        title = (
+            title.strip()
+            if isinstance(title, str) and title.strip()
+            else "Title unavailable"
+        )
+        source = (
+            source.strip()
+            if isinstance(source, str) and source.strip()
+            else "Source unavailable"
+        )
+        url = (
+            url.strip()
+            if isinstance(url, str) and url.strip()
+            else "URL unavailable"
+        )
+
+        publication_types = paper.get("publication_types", [])
+        if not isinstance(publication_types, list) or not all(
+            isinstance(item, str) for item in publication_types
+        ):
+            publication_types = []
+
+        peer_review_status = paper.get("peer_review_status", "unverified")
+        if not isinstance(peer_review_status, str):
+            peer_review_status = "unverified"
 
         evidence_id = len(citation_metadata) + 1
 
@@ -63,6 +97,8 @@ def run_rag_research(
                 "title": title,
                 "source": source,
                 "url": url,
+                "publication_types": publication_types,
+                "peer_review_status": peer_review_status,
             }
         )
 
@@ -87,6 +123,7 @@ def run_rag_research(
 def run_pinecone_rag_research(
     research_topic: str,
     top_k: int = 3,
+    peer_reviewed_only: bool = False,
 ) -> dict:
     """Run research using papers retrieved from Pinecone."""
 
@@ -94,4 +131,5 @@ def run_pinecone_rag_research(
         research_topic=research_topic,
         search_papers=pinecone_search_papers,
         top_k=top_k,
+        peer_reviewed_only=peer_reviewed_only,
     )
