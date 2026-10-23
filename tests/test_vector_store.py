@@ -125,3 +125,51 @@ def test_search_papers_handles_missing_metadata():
     assert results[0]["source"] == ""
     assert results[0]["url"] == ""
     assert results[0]["score"] == 0.75
+
+
+
+def test_search_papers_preserves_multiple_chunks_from_same_paper():
+    first_match = MagicMock()
+    first_match.score = 0.95
+    first_match.metadata = {
+        "paper_id": "paper-1",
+        "chunk_number": 0,
+        "title": "Study A",
+        "text": "First relevant chunk.",
+        "source": "journal",
+        "url": "https://example.org/a",
+    }
+
+    second_match = MagicMock()
+    second_match.score = 0.90
+    second_match.metadata = {
+        "paper_id": "paper-1",
+        "chunk_number": 1,
+        "title": "Study A",
+        "text": "Second relevant chunk.",
+        "source": "journal",
+        "url": "https://example.org/a",
+    }
+
+    pinecone_results = MagicMock()
+    pinecone_results.matches = [first_match, second_match]
+
+    mock_index = MagicMock()
+    mock_index.query.return_value = pinecone_results
+
+    with (
+        patch(
+            "services.vector_store.embed_text",
+            return_value=mock_embedding(),
+        ),
+        patch(
+            "services.vector_store.get_clients",
+            return_value=(MagicMock(), mock_index),
+        ),
+    ):
+        results = search_papers("Research topic", top_k=3)
+
+    assert len(results) == 2
+    assert results[0]["paper_id"] == results[1]["paper_id"]
+    assert results[0]["chunk_number"] == 0
+    assert results[1]["chunk_number"] == 1
