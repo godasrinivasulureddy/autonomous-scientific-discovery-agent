@@ -170,3 +170,63 @@ def test_rag_skips_blank_paper_and_keeps_evidence_ids_sequential():
     assert result["retrieval_count"] == 1
     assert result["citation_metadata"][0]["evidence_id"] == 1
     assert "Evidence [1]" in mock_workflow.call_args.kwargs["paper_text"]
+
+
+
+
+@pytest.mark.parametrize(
+    "topic,paper_title,paper_text",
+    [
+        (
+            "Diabetes prediction",
+            "Diabetes Prediction Study",
+            "Evidence about diabetes prediction.",
+        ),
+        (
+            "Protein structure prediction",
+            "Protein Structure Study",
+            "Evidence about protein structures.",
+        ),
+        (
+            "Climate change forecasting",
+            "Climate Forecasting Study",
+            "Evidence about climate forecasting.",
+        ),
+    ],
+)
+def test_rag_retrieval_supports_multiple_topics(
+    topic,
+    paper_title,
+    paper_text,
+):
+    papers = [
+        {
+            "paper_id": f"test:{topic}",
+            "title": paper_title,
+            "source": "test-journal",
+            "url": "https://example.org/study",
+            "text": paper_text,
+        }
+    ]
+
+    def mock_search(query, top_k=3):
+        assert query == topic
+        return papers
+
+    with patch(
+        "agents.rag_orchestrator.run_research_workflow",
+        return_value=mock_workflow_result(),
+    ) as mock_workflow:
+        result = run_rag_research(
+            research_topic=topic,
+            search_papers=mock_search,
+        )
+
+    assert result["retrieval_count"] == 1
+    assert result["citation_metadata"][0]["title"] == paper_title
+
+    context = mock_workflow.call_args.kwargs["paper_text"]
+    assert topic in mock_workflow.call_args.kwargs["research_topic"]
+    assert paper_title in context
+    assert paper_text in context
+
