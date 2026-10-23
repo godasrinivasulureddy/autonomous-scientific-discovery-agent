@@ -64,7 +64,8 @@ Evidence and citation rules:
 - Never invent papers, authors, findings, URLs, or citations.
 - If no evidence IDs are available, explicitly state that source-level
   citations cannot be provided.
-- If evidence is insufficient to establish a research gap, say so.
+- If the supplied evidence is insufficient to identify a research gap,
+  explicitly state that limitation rather than inventing one.
 - Distinguish reported findings from assumptions and proposed ideas.
 - Do not claim the hypothesis has been tested or validated.
 - Do not imply that a citation proves a claim unless the supplied text
