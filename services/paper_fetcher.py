@@ -17,6 +17,7 @@ class Paper:
     url: str
     published: str
     source: str
+    publication_types: list = None
 
     def to_dict(self):
         return asdict(self)
