@@ -248,3 +248,73 @@ def test_search_pubmed_returns_eligible_article_metadata(
     assert papers[0].publication_types == ["Journal Article"]
     assert papers[0].peer_review_status == "eligible_for_verification"
 
+
+
+
+def test_ingestion_requests_peer_review_eligible_papers():
+    paper = make_paper("pubmed:12345")
+    paper.publication_types = ["Journal Article"]
+    paper.peer_review_status = "eligible_for_verification"
+
+    with (
+        patch(
+            "services.paper_fetcher.search_all",
+            return_value=[paper],
+        ) as mock_search,
+        patch("services.vector_store.paper_exists", return_value=True),
+        patch("services.vector_store.store_paper") as mock_store,
+    ):
+        result = ingest_research_papers("machine learning", max_results=2)
+
+    mock_search.assert_called_once_with(
+        "machine learning",
+        max_results=2,
+        peer_reviewed_only=True,
+    )
+    mock_store.assert_not_called()
+    assert result["status"] == "completed"
+    assert result["skipped_papers"] == ["pubmed:12345"]
+
+
+def test_ingestion_stores_publication_metadata():
+    paper = make_paper("pubmed:12345")
+    paper.publication_types = ["Journal Article"]
+    paper.peer_review_status = "eligible_for_verification"
+
+    record = make_record(
+        title="PubMed Research",
+        source="pubmed",
+        url="https://pubmed.ncbi.nlm.nih.gov/12345/",
+        full_text="Full text of the research paper.",
+    )
+
+    with (
+        patch(
+            "services.paper_fetcher.search_all",
+            return_value=[paper],
+        ),
+        patch("services.vector_store.paper_exists", return_value=False),
+        patch(
+            "services.pdf_processor.process_paper",
+            return_value=record,
+        ),
+        patch(
+            "services.vector_store.store_paper",
+            return_value={"status": "stored", "chunk_count": 1},
+        ) as mock_store,
+    ):
+        result = ingest_research_papers("machine learning", max_results=1)
+
+    mock_store.assert_called_once_with(
+        paper_id="pubmed:12345",
+        title="PubMed Research",
+        text="Full text of the research paper.",
+        source="pubmed",
+        url="https://pubmed.ncbi.nlm.nih.gov/12345/",
+        publication_types=["Journal Article"],
+        peer_review_status="eligible_for_verification",
+    )
+
+    assert result["status"] == "completed"
+    assert result["paper_count"] == 1
+
