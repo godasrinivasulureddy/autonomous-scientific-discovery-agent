@@ -100,3 +100,65 @@ def test_hypothesis_rejects_empty_or_invalid_response(response):
                 "Research topic",
                 "Relevant literature.",
             )
+
+
+
+from unittest.mock import patch
+
+from agents.hypothesis_generator import generate_hypothesis
+
+
+@patch("agents.hypothesis_generator.generate_response")
+def test_hypothesis_prompt_requires_evidence_citations(mock_generate):
+    mock_generate.return_value = (
+        "Research Gap\nLimited evidence.\n"
+        "Hypothesis\nTreatment A may improve outcome B.\n"
+        "Supporting Evidence\nEvidence [1].\n"
+        "Variables\nA and B.\n"
+        "Proposed Experiment\nCompare treatment and control.\n"
+        "Assumptions and Limitations\nSmall sample size."
+    )
+
+    literature = (
+        "Evidence [1]: Paper on treatment A and outcome B. "
+        "Source: https://example.org/paper"
+    )
+
+    result = generate_hypothesis("Treatment A", literature)
+
+    prompt = mock_generate.call_args.args[0]
+    assert "Never invent papers, authors, findings, URLs, or citations" in prompt
+    assert "Evidence [1]" in prompt
+    assert "Evidence [1]" in result
+
+
+@patch("agents.hypothesis_generator.generate_response")
+def test_hypothesis_prompt_handles_insufficient_evidence(mock_generate):
+    mock_generate.return_value = (
+        "Research Gap\nInsufficient evidence to identify a research gap.\n"
+        "Hypothesis\nCannot propose a grounded hypothesis yet.\n"
+        "Supporting Evidence\nInsufficient evidence.\n"
+        "Variables\nNot established.\n"
+        "Proposed Experiment\nRequires further evidence.\n"
+        "Assumptions and Limitations\nEvidence is insufficient."
+    )
+
+    result = generate_hypothesis(
+        "Treatment A",
+        "Only a brief, inconclusive abstract is available.",
+    )
+
+    prompt = mock_generate.call_args.args[0]
+    assert "explicitly state that limitation" in prompt
+    assert "Never invent papers, authors, findings, URLs, or citations" in prompt
+    assert "Insufficient evidence" in result
+
+
+@patch("agents.hypothesis_generator.generate_response")
+def test_hypothesis_rejects_empty_generated_response(mock_generate):
+    mock_generate.return_value = "   "
+
+    import pytest
+
+    with pytest.raises(ValueError, match="empty response"):
+        generate_hypothesis("Treatment A", "Evidence [1]: sample finding.")
