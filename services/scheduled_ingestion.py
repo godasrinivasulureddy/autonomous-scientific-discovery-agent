@@ -22,17 +22,17 @@ def main():
     papers = search_all(
         topic,
         max_results=max_results,
+        peer_reviewed_only=True,
     )
 
     if not papers:
         raise RuntimeError(
-            "No papers were returned from ArXiv or PubMed."
+            "No eligible papers were returned from ArXiv or PubMed."
         )
 
     stored = 0
     skipped = 0
     failed = 0
-
     seen_ids = set()
 
     for paper in papers:
@@ -65,6 +65,8 @@ def main():
                 text=abstract,
                 source=paper.source,
                 url=paper.url,
+                publication_types=paper.publication_types,
+                peer_review_status=paper.peer_review_status,
             )
 
             stored += 1
@@ -75,9 +77,7 @@ def main():
 
         except Exception as error:
             failed += 1
-            print(
-                f"FAILED: {paper.paper_id} — {error}"
-            )
+            print(f"FAILED: {paper.paper_id} — {error}")
 
     print(
         f"SUMMARY: stored={stored}, "
@@ -90,9 +90,7 @@ def main():
         )
 
     if stored == 0 and skipped == 0:
-        raise RuntimeError(
-            "No valid papers were processed."
-        )
+        raise RuntimeError("No valid papers were processed.")
 
 
 if __name__ == "__main__":
