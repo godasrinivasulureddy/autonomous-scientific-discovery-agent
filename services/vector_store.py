@@ -1,4 +1,4 @@
-
+```python
 import os
 
 from dotenv import load_dotenv
@@ -107,7 +107,10 @@ def store_paper(
     ):
         raise ValueError("publication_types must be a list of strings.")
 
-    if not isinstance(peer_review_status, str) or not peer_review_status.strip():
+    if (
+        not isinstance(peer_review_status, str)
+        or not peer_review_status.strip()
+    ):
         raise ValueError("peer_review_status must be a non-empty string.")
 
     chunks = chunk_text(text)
@@ -142,8 +145,8 @@ def store_paper(
     }
 
 
-def search_papers(query, top_k=3):
-    """Retrieve relevant research chunks with source metadata."""
+def search_papers(query, top_k=3, peer_reviewed_only=False):
+    """Retrieve research chunks, optionally requiring verified peer review."""
     if not isinstance(query, str) or not query.strip():
         raise ValueError("Search query cannot be empty.")
 
@@ -154,15 +157,24 @@ def search_papers(query, top_k=3):
     ):
         raise ValueError("top_k must be a positive integer.")
 
+    if not isinstance(peer_reviewed_only, bool):
+        raise ValueError("peer_reviewed_only must be a boolean.")
+
     vector = embed_text(query, "RETRIEVAL_QUERY")
     _, index = get_clients()
 
-    results = index.query(
-        vector=vector,
-        top_k=top_k,
-        include_metadata=True,
-    )
+    query_args = {
+        "vector": vector,
+        "top_k": top_k,
+        "include_metadata": True,
+    }
 
+    if peer_reviewed_only:
+        query_args["filter"] = {
+            "peer_review_status": {"$eq": "verified"}
+        }
+
+    results = index.query(**query_args)
     papers = []
 
     for match in results.matches:
@@ -240,3 +252,4 @@ def chunk_text(
             break
 
     return chunks
+```
