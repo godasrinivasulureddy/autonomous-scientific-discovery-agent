@@ -133,3 +133,23 @@ def test_paper_without_id_is_not_stored():
 
     assert result["paper_count"] == 0
     mock_store.assert_not_called()
+
+
+
+from services.paper_fetcher import _is_eligible_pubmed_article
+
+
+def test_peer_review_filter_rejects_preprints():
+    assert _is_eligible_pubmed_article(["Preprint"]) is False
+
+
+def test_peer_review_filter_rejects_editorials():
+    assert _is_eligible_pubmed_article(["Editorial"]) is False
+
+
+def test_peer_review_filter_rejects_missing_publication_types():
+    assert _is_eligible_pubmed_article([]) is False
+
+
+def test_peer_review_filter_accepts_research_article_for_verification():
+    assert _is_eligible_pubmed_article(["Journal Article"]) is True
