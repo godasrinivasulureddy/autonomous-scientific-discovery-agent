@@ -1,4 +1,3 @@
-
 import os
 
 from dotenv import load_dotenv
@@ -10,6 +9,7 @@ load_dotenv()
 INDEX_NAME = "scientific-papers"
 EMBEDDING_MODEL = "gemini-embedding-001"
 DIMENSION = 768
+BATCH_SIZE = 50
 
 
 def get_clients():
@@ -30,8 +30,11 @@ def get_clients():
 
 def embed_text(text, task_type):
     """Generate a 768-dimensional Gemini embedding."""
-    if not text or not text.strip():
+    if not isinstance(text, str) or not text.strip():
         raise ValueError("Text cannot be empty.")
+
+    if task_type not in {"RETRIEVAL_DOCUMENT", "RETRIEVAL_QUERY"}:
+        raise ValueError("Unsupported embedding task type.")
 
     gemini_client, _ = get_clients()
 
@@ -44,78 +47,81 @@ def embed_text(text, task_type):
         },
     )
 
-    return response.embeddings[0].values
+    if not response.embeddings or not response.embeddings[0].values:
+        raise ValueError("Embedding generation returned no vector.")
+
+    embedding = response.embeddings[0].values
+
+    if len(embedding) != DIMENSION:
+        raise ValueError(
+            f"Expected an embedding of {DIMENSION} dimensions."
+        )
+
+    return embedding
 
 
 def paper_exists(paper_id):
-    """
-    Check whether the first chunk of a paper exists in Pinecone.
-
-    This supports duplicate prevention for scheduled ingestion.
-    """
-    if not paper_id or not str(paper_id).strip():
+    """Check whether the first chunk of a paper exists in Pinecone."""
+    if not isinstance(paper_id, str) or not paper_id.strip():
         raise ValueError("Paper ID is required.")
 
     _, index = get_clients()
-
     vector_id = f"{paper_id}-chunk-0"
-
     response = index.fetch(ids=[vector_id])
 
     return vector_id in response.vectors
 
 
 def store_paper(paper_id, title, text, source, url=""):
-    """Split a scientific paper into chunks and store them in Pinecone."""
-    if not paper_id or not title or not text or not text.strip():
-        raise ValueError(
-            "Paper ID, title, and text are required."
-        )
+    """Chunk a paper and store its evidence and citation metadata."""
+    if not isinstance(paper_id, str) or not paper_id.strip():
+        raise ValueError("Paper ID is required.")
+
+    if not isinstance(title, str) or not title.strip():
+        raise ValueError("Paper title is required.")
+
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError("Paper text is required.")
+
+    if not isinstance(source, str) or not source.strip():
+        raise ValueError("Paper source is required.")
+
+    if not isinstance(url, str):
+        raise ValueError("Paper URL must be a string.")
 
     chunks = chunk_text(text)
     _, index = get_clients()
-
     vectors = []
 
     for chunk_number, chunk in enumerate(chunks):
-        embedding = embed_text(
-            chunk,
-            "RETRIEVAL_DOCUMENT",
-        )
+        embedding = embed_text(chunk, "RETRIEVAL_DOCUMENT")
 
-        vectors.append(
-            {
-                "id": f"{paper_id}-chunk-{chunk_number}",
-                "values": embedding,
-                "metadata": {
-                    "paper_id": str(paper_id),
-                    "chunk_number": chunk_number,
-                    "title": title,
-                    "text": chunk,
-                    "source": source,
-                    "url": url,
-                },
-            }
-        )
+        vectors.append({
+            "id": f"{paper_id}-chunk-{chunk_number}",
+            "values": embedding,
+            "metadata": {
+                "paper_id": paper_id,
+                "chunk_number": chunk_number,
+                "title": title.strip(),
+                "text": chunk,
+                "source": source.strip(),
+                "url": url.strip(),
+            },
+        })
 
-    # Upload vectors in batches to avoid oversized requests.
-    batch_size = 50
-
-    for start in range(0, len(vectors), batch_size):
-        index.upsert(
-            vectors=vectors[start:start + batch_size]
-        )
+    for start in range(0, len(vectors), BATCH_SIZE):
+        index.upsert(vectors=vectors[start:start + BATCH_SIZE])
 
     return {
         "status": "stored",
-        "paper_id": str(paper_id),
+        "paper_id": paper_id,
         "chunk_count": len(chunks),
     }
 
 
 def search_papers(query, top_k=3):
-    """Find scientifically relevant papers using vector similarity."""
-    if not query or not query.strip():
+    """Retrieve relevant research chunks with source metadata."""
+    if not isinstance(query, str) or not query.strip():
         raise ValueError("Search query cannot be empty.")
 
     if (
@@ -123,15 +129,9 @@ def search_papers(query, top_k=3):
         or isinstance(top_k, bool)
         or top_k < 1
     ):
-        raise ValueError(
-            "top_k must be a positive integer."
-        )
+        raise ValueError("top_k must be a positive integer.")
 
-    vector = embed_text(
-        query,
-        "RETRIEVAL_QUERY",
-    )
-
+    vector = embed_text(query, "RETRIEVAL_QUERY")
     _, index = get_clients()
 
     results = index.query(
@@ -140,16 +140,22 @@ def search_papers(query, top_k=3):
         include_metadata=True,
     )
 
-    return [
-        {
-            "title": match.metadata.get("title", ""),
-            "text": match.metadata.get("text", ""),
-            "source": match.metadata.get("source", ""),
-            "url": match.metadata.get("url", ""),
+    papers = []
+
+    for match in results.matches:
+        metadata = match.metadata or {}
+
+        papers.append({
+            "paper_id": metadata.get("paper_id", ""),
+            "chunk_number": metadata.get("chunk_number", 0),
+            "title": metadata.get("title", ""),
+            "text": metadata.get("text", ""),
+            "source": metadata.get("source", ""),
+            "url": metadata.get("url", ""),
             "score": match.score,
-        }
-        for match in results.matches
-    ]
+        })
+
+    return papers
 
 
 def chunk_text(
@@ -157,18 +163,20 @@ def chunk_text(
     chunk_size: int = 1000,
     overlap: int = 150,
 ) -> list[str]:
-    """Split long research papers into overlapping text chunks."""
-    if not text or not text.strip():
+    """Split research text into overlapping chunks."""
+    if not isinstance(text, str) or not text.strip():
         raise ValueError("Paper text cannot be empty.")
 
     if (
-        chunk_size <= 0
+        not isinstance(chunk_size, int)
+        or isinstance(chunk_size, bool)
+        or not isinstance(overlap, int)
+        or isinstance(overlap, bool)
+        or chunk_size <= 0
         or overlap < 0
         or overlap >= chunk_size
     ):
-        raise ValueError(
-            "Invalid chunk size or overlap."
-        )
+        raise ValueError("Invalid chunk size or overlap.")
 
     chunks = []
     step = chunk_size - overlap
