@@ -1,29 +1,37 @@
-
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from agents.orchestrator import ingest_research_papers
 
 
-def test_paper_ingestion():
+def make_paper(paper_id="arxiv:12345"):
     paper = MagicMock()
-    paper.paper_id = "arxiv:12345"
+    paper.paper_id = paper_id
+    return paper
 
-    processed_record = {
-        "title": "Machine Learning Research",
-        "source": "arxiv",
-        "url": "https://arxiv.org/abs/12345",
-        "full_text": "Scientific research about machine learning.",
+
+def make_record(
+    title="Machine Learning Research",
+    source="arxiv",
+    url="https://arxiv.org/abs/12345",
+    full_text="Scientific research about machine learning.",
+):
+    return {
+        "title": title,
+        "source": source,
+        "url": url,
+        "full_text": full_text,
     }
 
+
+def test_paper_ingestion():
+    paper = make_paper()
+    record = make_record()
+
     with (
-        patch(
-            "services.paper_fetcher.search_all",
-            return_value=[paper],
-        ),
-        patch(
-            "services.pdf_processor.process_paper",
-            return_value=processed_record,
-        ),
+        patch("services.paper_fetcher.search_all", return_value=[paper]),
+        patch("services.pdf_processor.process_paper", return_value=record),
         patch(
             "services.vector_store.store_paper",
             return_value={
@@ -50,29 +58,21 @@ def test_paper_ingestion():
     )
 
 
-
-
 def test_duplicate_papers_stored_once():
-    paper = MagicMock()
-    paper.paper_id = "arxiv:12345"
-
-    record = {
-        "title": "Sample Research",
-        "source": "arxiv",
-        "url": "https://arxiv.org/abs/12345",
-        "full_text": "Research paper content.",
-    }
+    paper = make_paper()
+    record = make_record(
+        title="Sample Research",
+        url="https://arxiv.org/abs/12345",
+        full_text="Research paper content.",
+    )
 
     with (
+        patch("services.paper_fetcher.search_all", return_value=[paper, paper]),
+        patch("services.pdf_processor.process_paper", return_value=record),
         patch(
-            "services.paper_fetcher.search_all",
-            return_value=[paper, paper],
-        ),
-        patch(
-            "services.pdf_processor.process_paper",
-            return_value=record,
-        ),
-        patch("services.vector_store.store_paper") as mock_store,
+            "services.vector_store.store_paper",
+            return_value={"status": "stored"},
+        ) as mock_store,
     ):
         result = ingest_research_papers("machine learning")
 
@@ -81,25 +81,16 @@ def test_duplicate_papers_stored_once():
 
 
 def test_empty_paper_not_stored():
-    paper = MagicMock()
-    paper.paper_id = "arxiv:empty"
-
-    record = {
-        "title": "Empty Paper",
-        "source": "arxiv",
-        "url": "",
-        "full_text": "   ",
-    }
+    paper = make_paper("arxiv:empty")
+    record = make_record(
+        title="Empty Paper",
+        url="",
+        full_text="   ",
+    )
 
     with (
-        patch(
-            "services.paper_fetcher.search_all",
-            return_value=[paper],
-        ),
-        patch(
-            "services.pdf_processor.process_paper",
-            return_value=record,
-        ),
+        patch("services.paper_fetcher.search_all", return_value=[paper]),
+        patch("services.pdf_processor.process_paper", return_value=record),
         patch("services.vector_store.store_paper") as mock_store,
     ):
         result = ingest_research_papers("machine learning")
@@ -107,3 +98,38 @@ def test_empty_paper_not_stored():
     assert result["paper_count"] == 0
     mock_store.assert_not_called()
 
+
+@pytest.mark.parametrize(
+    "topic",
+    ["", "   ", None, 123],
+)
+def test_invalid_topic_rejected(topic):
+    with pytest.raises((ValueError, TypeError)):
+        ingest_research_papers(topic)
+
+
+@pytest.mark.parametrize(
+    "max_results",
+    [0, -1, 1.5, True, "3", None],
+)
+def test_invalid_max_results_rejected(max_results):
+    with pytest.raises((ValueError, TypeError)):
+        ingest_research_papers(
+            "machine learning",
+            max_results=max_results,
+        )
+
+
+def test_paper_without_id_is_not_stored():
+    paper = make_paper("")
+    record = make_record()
+
+    with (
+        patch("services.paper_fetcher.search_all", return_value=[paper]),
+        patch("services.pdf_processor.process_paper", return_value=record),
+        patch("services.vector_store.store_paper") as mock_store,
+    ):
+        result = ingest_research_papers("machine learning")
+
+    assert result["paper_count"] == 0
+    mock_store.assert_not_called()
