@@ -1,3 +1,4 @@
+
 from agents.code_executor import execute_experiment
 from agents.langchain_workflow import run_langchain_research
 
@@ -16,6 +17,15 @@ def _validate_max_results(max_results: int) -> None:
         raise ValueError("max_results must be a positive integer.")
 
 
+def _validate_top_k(top_k: int) -> None:
+    if (
+        not isinstance(top_k, int)
+        or isinstance(top_k, bool)
+        or top_k < 1
+    ):
+        raise ValueError("top_k must be a positive integer.")
+
+
 def run_research_workflow(
     research_topic: str,
     paper_text: str,
@@ -28,12 +38,12 @@ def run_research_workflow(
         raise ValueError("Paper text cannot be empty.")
 
     research_result = run_langchain_research(
-        topic=research_topic,
+        topic=research_topic.strip(),
         paper_text=paper_text,
     )
 
     return {
-        "research_topic": research_topic,
+        "research_topic": research_topic.strip(),
         "literature_review": research_result["literature_review"],
         "hypothesis": research_result["hypothesis"],
         "experiment": {
@@ -52,32 +62,31 @@ def run_approved_experiment(values: list[float]) -> dict:
     )
 
 
-def run_research_from_papers(
-    research_topic: str,
-    max_results: int = 3,
-) -> dict:
-    """Fetch scientific papers and run the research agents."""
+def _fetch_unique_papers(research_topic: str, max_results: int):
+    """Fetch papers and remove duplicates by paper ID."""
 
     from services.paper_fetcher import search_all
-    from services.pdf_processor import process_paper
-
-    _validate_research_topic(research_topic)
-    _validate_max_results(max_results)
 
     papers = search_all(research_topic, max_results=max_results)
 
     unique_papers = {}
+
     for paper in papers:
         paper_id = getattr(paper, "paper_id", None)
-        if paper_id:
+
+        if isinstance(paper_id, str) and paper_id.strip():
             unique_papers.setdefault(paper_id, paper)
 
-    papers = list(unique_papers.values())
+    return list(unique_papers.values())
 
-    if not papers:
-        raise ValueError("No research papers found for this topic.")
+
+def _process_papers(papers: list) -> list[dict]:
+    """Process papers and retain records containing usable text."""
+
+    from services.pdf_processor import process_paper
 
     processed_papers = []
+
     for paper in papers:
         try:
             record = process_paper(paper)
@@ -92,6 +101,7 @@ def run_research_from_papers(
             continue
 
         full_text = record.get("full_text")
+
         if not isinstance(full_text, str) or not full_text.strip():
             continue
 
@@ -99,6 +109,28 @@ def run_research_from_papers(
             "paper": paper,
             "record": record,
         })
+
+    return processed_papers
+
+
+def run_research_from_papers(
+    research_topic: str,
+    max_results: int = 3,
+) -> dict:
+    """Fetch scientific papers and run the research agents."""
+
+    _validate_research_topic(research_topic)
+    _validate_max_results(max_results)
+
+    papers = _fetch_unique_papers(
+        research_topic.strip(),
+        max_results,
+    )
+
+    if not papers:
+        raise ValueError("No research papers found for this topic.")
+
+    processed_papers = _process_papers(papers)
 
     if not processed_papers:
         raise ValueError("No papers could be processed into usable text.")
@@ -113,7 +145,7 @@ def run_research_from_papers(
     )
 
     result = run_research_workflow(
-        research_topic=research_topic,
+        research_topic=research_topic.strip(),
         paper_text=paper_text,
     )
 
@@ -130,56 +162,105 @@ def ingest_research_papers(
     research_topic: str,
     max_results: int = 3,
 ) -> dict:
-    """Fetch scientific papers, process them, and store them in Pinecone."""
+    """Fetch, process, and store new research papers in Pinecone."""
 
-    from services.paper_fetcher import search_all
-    from services.pdf_processor import process_paper
-    from services.vector_store import store_paper
+    from services.vector_store import paper_exists, store_paper
 
     _validate_research_topic(research_topic)
     _validate_max_results(max_results)
 
-    papers = search_all(research_topic, max_results=max_results)
-
-    unique_papers = {}
-    for paper in papers:
-        paper_id = getattr(paper, "paper_id", None)
-        if paper_id:
-            unique_papers.setdefault(paper_id, paper)
+    papers = _fetch_unique_papers(
+        research_topic.strip(),
+        max_results,
+    )
 
     stored_papers = []
+    skipped_papers = []
+    failed_papers = []
 
-    for paper in unique_papers.values():
+    for paper in papers:
+        paper_id = getattr(paper, "paper_id", None)
+
+        if not isinstance(paper_id, str) or not paper_id.strip():
+            continue
+
         try:
+            if paper_exists(paper_id):
+                skipped_papers.append(paper_id)
+                print(f"[info] Skipping existing paper: {paper_id}")
+                continue
+        except Exception as error:
+            failed_papers.append({
+                "paper_id": paper_id,
+                "reason": f"Could not check existing paper: {error}",
+            })
+            print(
+                f"[warning] Could not check paper {paper_id}: {error}"
+            )
+            continue
+
+        try:
+            from services.pdf_processor import process_paper
+
             record = process_paper(paper)
         except Exception as error:
+            failed_papers.append({
+                "paper_id": paper_id,
+                "reason": f"Paper processing failed: {error}",
+            })
             print(
-                f"[warning] Failed to process paper "
-                f"{getattr(paper, 'paper_id', 'unknown')}: {error}"
+                f"[warning] Failed to process paper {paper_id}: {error}"
             )
             continue
 
         if not isinstance(record, dict):
+            failed_papers.append({
+                "paper_id": paper_id,
+                "reason": "Paper processor returned an invalid record.",
+            })
             continue
 
         full_text = record.get("full_text")
+
         if not isinstance(full_text, str) or not full_text.strip():
+            failed_papers.append({
+                "paper_id": paper_id,
+                "reason": "Paper has no usable text.",
+            })
             continue
 
-        result = store_paper(
-            paper_id=paper.paper_id,
-            title=record.get("title", getattr(paper, "title", "Title unavailable")),
-            text=full_text.strip(),
-            source=record.get("source", getattr(paper, "source", "unknown")),
-            url=record.get("url", getattr(paper, "url", "")),
+        title = record.get("title") or getattr(
+            paper, "title", "Title unavailable"
         )
+        source = record.get("source") or getattr(
+            paper, "source", "unknown"
+        )
+        url = record.get("url") or getattr(paper, "url", "")
 
-        stored_papers.append(result)
+        try:
+            storage_result = store_paper(
+                paper_id=paper_id,
+                title=title,
+                text=full_text.strip(),
+                source=source,
+                url=url,
+            )
+            stored_papers.append(storage_result)
+        except Exception as error:
+            failed_papers.append({
+                "paper_id": paper_id,
+                "reason": f"Pinecone storage failed: {error}",
+            })
+            print(
+                f"[warning] Failed to store paper {paper_id}: {error}"
+            )
 
     return {
-        "research_topic": research_topic,
+        "research_topic": research_topic.strip(),
         "paper_count": len(stored_papers),
         "stored_papers": stored_papers,
+        "skipped_papers": skipped_papers,
+        "failed_papers": failed_papers,
     }
 
 
@@ -219,6 +300,12 @@ def run_learning_experiments(
     if not isinstance(rounds, int) or isinstance(rounds, bool) or rounds < 1:
         raise ValueError("Rounds must be a positive integer.")
 
+    if any(
+        not isinstance(name, str) or not name.strip()
+        for name in experiment_options
+    ):
+        raise ValueError("Experiment names must be non-empty strings.")
+
     selector = ExperimentSelector(exploration_rate=0.2)
     selector.load(history_path)
 
@@ -253,39 +340,32 @@ def run_learning_experiments(
     }
 
 
-
 def run_full_research_pipeline(
     research_topic: str,
     max_results: int = 3,
     top_k: int = 3,
 ) -> dict:
-    """Ingest papers into Pinecone, then run research using RAG."""
+    """Ingest new papers, retrieve evidence from Pinecone, and run RAG."""
 
     from agents.rag_orchestrator import run_pinecone_rag_research
 
     _validate_research_topic(research_topic)
     _validate_max_results(max_results)
-
-    if (
-        not isinstance(top_k, int)
-        or isinstance(top_k, bool)
-        or top_k < 1
-    ):
-        raise ValueError("top_k must be a positive integer.")
+    _validate_top_k(top_k)
 
     ingestion = ingest_research_papers(
-        research_topic=research_topic,
+        research_topic=research_topic.strip(),
         max_results=max_results,
     )
 
-    if ingestion["paper_count"] == 0:
-        raise ValueError("No usable research papers were ingested.")
-
+    # Existing papers may have been skipped because they are already stored.
+    # Retrieval can still use those papers, so do not require new insertions.
     research = run_pinecone_rag_research(
-        research_topic=research_topic,
+        research_topic=research_topic.strip(),
         top_k=top_k,
     )
 
     research["ingestion"] = ingestion
     research["pipeline_status"] = "completed"
+
     return research
