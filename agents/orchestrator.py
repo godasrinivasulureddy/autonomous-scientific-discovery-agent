@@ -173,8 +173,8 @@ def ingest_research_papers(
         try:
             already_exists = paper_exists(paper_id)
         except Exception as error:
-            # Preserve the existing fallback behavior: attempt ingestion.
-            # The storage layer should handle duplicate upserts.
+            # Preserve fallback behavior: attempt ingestion if the
+            # duplicate check fails. The storage layer handles upserts.
             print(
                 f"[warning] Could not check existing paper "
                 f"{paper_id}: {error}"
@@ -205,19 +205,35 @@ def ingest_research_papers(
             )
             url = record.get("url") or getattr(paper, "url", "")
 
-            storage_result = store_paper(
-                paper_id=paper_id,
-                title=title,
-                text=full_text.strip(),
-                source=source,
-                url=url,
-                publication_types=getattr(
-                    paper, "publication_types", []
-                ),
-                peer_review_status=getattr(
-                    paper, "peer_review_status", "unverified"
-                ),
+            # Keep the original five arguments for objects that do not
+            # provide valid publication metadata. This preserves
+            # compatibility with existing callers and tests.
+            store_kwargs = {
+                "paper_id": paper_id,
+                "title": title,
+                "text": full_text.strip(),
+                "source": source,
+                "url": url,
+            }
+
+            publication_types = getattr(
+                paper, "publication_types", None
             )
+            peer_review_status = getattr(
+                paper, "peer_review_status", None
+            )
+
+            # Real Paper records provide a list and a string. Mock or
+            # legacy records without valid metadata use the defaults
+            # already supported by store_paper().
+            if (
+                isinstance(publication_types, list)
+                and isinstance(peer_review_status, str)
+            ):
+                store_kwargs["publication_types"] = publication_types
+                store_kwargs["peer_review_status"] = peer_review_status
+
+            storage_result = store_paper(**store_kwargs)
             stored_papers.append(storage_result)
 
         except Exception as error:
@@ -232,9 +248,7 @@ def ingest_research_papers(
             if stored_papers or skipped_papers
             else "failed"
         )
-    elif stored_papers:
-        status = "completed"
-    elif skipped_papers:
+    elif stored_papers or skipped_papers:
         status = "completed"
     else:
         status = "failed"
