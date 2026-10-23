@@ -1,3 +1,4 @@
+
 from unittest.mock import patch
 
 import pytest
@@ -59,6 +60,60 @@ def test_rag_research_integration():
     assert "Diabetes Prediction Using ML" in context
     assert "Machine learning can support diabetes prediction." in context
     assert "https://arxiv.org/abs/example" in context
+
+
+def test_rag_peer_review_filter_is_passed_when_enabled():
+    """Verify the strict peer-review option reaches the retrieval function."""
+    papers = [sample_paper()]
+
+    def mock_search(query, top_k=3, peer_reviewed_only=False):
+        assert query == "Diabetes prediction"
+        assert top_k == 3
+        assert peer_reviewed_only is True
+        return papers
+
+    with patch(
+        "agents.rag_orchestrator.run_research_workflow",
+        return_value=mock_workflow_result(),
+    ):
+        result = run_rag_research(
+            research_topic="Diabetes prediction",
+            search_papers=mock_search,
+            peer_reviewed_only=True,
+        )
+
+    assert result["retrieval_count"] == 1
+
+
+def test_rag_peer_review_filter_is_not_passed_by_default():
+    """Preserve compatibility with existing retrieval functions."""
+    papers = [sample_paper()]
+
+    def mock_search(query, top_k=3):
+        assert query == "Diabetes prediction"
+        assert top_k == 3
+        return papers
+
+    with patch(
+        "agents.rag_orchestrator.run_research_workflow",
+        return_value=mock_workflow_result(),
+    ):
+        result = run_rag_research(
+            research_topic="Diabetes prediction",
+            search_papers=mock_search,
+        )
+
+    assert result["retrieval_count"] == 1
+
+
+@pytest.mark.parametrize("value", [1, "true", None, "yes"])
+def test_rag_rejects_invalid_peer_review_filter(value):
+    with pytest.raises(ValueError, match="peer_reviewed_only"):
+        run_rag_research(
+            research_topic="Diabetes prediction",
+            search_papers=lambda *args, **kwargs: [sample_paper()],
+            peer_reviewed_only=value,
+        )
 
 
 def test_rag_rejects_empty_topic():
@@ -172,8 +227,6 @@ def test_rag_skips_blank_paper_and_keeps_evidence_ids_sequential():
     assert "Evidence [1]" in mock_workflow.call_args.kwargs["paper_text"]
 
 
-
-
 @pytest.mark.parametrize(
     "topic,paper_title,paper_text",
     [
@@ -229,7 +282,6 @@ def test_rag_retrieval_supports_multiple_topics(
     assert topic in mock_workflow.call_args.kwargs["research_topic"]
     assert paper_title in context
     assert paper_text in context
-
 
 
 def test_rag_keeps_citations_linked_to_correct_sources():
@@ -292,7 +344,6 @@ def test_rag_keeps_citations_linked_to_correct_sources():
 
     assert "https://example.org/protein" not in evidence_1
     assert "https://example.org/diabetes" not in evidence_2
-
 
 
 def test_rag_rejects_non_dictionary_paper():
