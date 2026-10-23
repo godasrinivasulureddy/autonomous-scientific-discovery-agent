@@ -1,4 +1,4 @@
-```python
+
 from unittest.mock import patch
 
 from services.paper_fetcher import Paper
@@ -151,4 +151,4 @@ def test_skips_missing_abstract(capsys):
     output = capsys.readouterr().out
     assert "no abstract" in output
     assert "stored=0, skipped=1, failed=0" in output
-```
+
