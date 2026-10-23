@@ -210,3 +210,38 @@ def test_search_papers_handles_malformed_metadata_values():
     assert results[0]["source"] == ""
     assert results[0]["url"] == ""
     assert results[0]["score"] == 0.82
+
+
+def test_search_papers_handles_missing_score():
+    match = MagicMock()
+    match.score = None
+    match.metadata = {
+        "paper_id": "paper-1",
+        "chunk_number": 0,
+        "title": "Study A",
+        "text": "Research evidence.",
+        "source": "journal",
+        "url": "https://example.org/a",
+    }
+
+    pinecone_results = MagicMock()
+    pinecone_results.matches = [match]
+
+    mock_index = MagicMock()
+    mock_index.query.return_value = pinecone_results
+
+    with (
+        patch(
+            "services.vector_store.embed_text",
+            return_value=mock_embedding(),
+        ),
+        patch(
+            "services.vector_store.get_clients",
+            return_value=(MagicMock(), mock_index),
+        ),
+    ):
+        results = search_papers("Research topic", top_k=3)
+
+    assert len(results) == 1
+    assert results[0]["paper_id"] == "paper-1"
+    assert results[0]["score"] is None
