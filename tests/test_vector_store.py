@@ -1,3 +1,11 @@
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from services.vector_store import search_papers
+
+
+
 
 def test_search_papers_can_filter_for_verified_peer_review():
     pinecone_results = MagicMock()
