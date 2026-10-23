@@ -1,4 +1,4 @@
-```python
+
 import os
 
 from dotenv import load_dotenv
@@ -252,4 +252,4 @@ def chunk_text(
             break
 
     return chunks
-```
+
