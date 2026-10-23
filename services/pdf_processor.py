@@ -1,113 +1,177 @@
-"""Download research PDFs, extract + clean their text, and save processed data."""
+"""Download research PDFs, extract and clean text, and save processed data."""
+
 import json
 import re
 import time
 from pathlib import Path
 
-import pymupdf  # PyMuPDF (installed with: pip install pymupdf)
+import pymupdf
 import requests
 
-# Works whether you run it with the VS Code play button or with "python -m services.pdf_processor"
 try:
     from services.paper_fetcher import Paper, search_all
 except ModuleNotFoundError:
     from paper_fetcher import Paper, search_all
 
-# Always save inside the repo's data/ folder, no matter where you run from
+
 ROOT = Path(__file__).resolve().parent.parent
 PDF_DIR = ROOT / "data" / "pdfs"
 PROCESSED_DIR = ROOT / "data" / "processed"
-HEADERS = {"User-Agent": "Mozilla/5.0 (student research project)"}
+HEADERS = {"User-Agent": "ScientificDiscoveryAgent/1.0 (research project)"}
 
 
 def safe_name(paper_id):
-    """'arxiv:2610.07997v1' -> 'arxiv_2610.07997v1' (safe to use as a filename)."""
+    """Convert a paper ID into a safe filename."""
+    if not isinstance(paper_id, str) or not paper_id.strip():
+        raise ValueError("paper_id must be a non-empty string")
     return re.sub(r"[^A-Za-z0-9._-]", "_", paper_id)
 
 
-# ---------- 1. Download ----------
 def download_pdf(paper, retries=3):
-    """Download the PDF. Only ArXiv papers have direct PDFs; PubMed returns None."""
+    """Download an ArXiv PDF; return None when unavailable."""
     if paper.source != "arxiv":
         return None
 
+    if type(retries) is not int or retries < 1:
+        raise ValueError("retries must be a positive integer")
+
     PDF_DIR.mkdir(parents=True, exist_ok=True)
-    path = PDF_DIR / f"{safe_name(paper.paper_id)}.pdf"
+    filename = safe_name(paper.paper_id)
+    path = PDF_DIR / f"{filename}.pdf"
+
     if path.exists() and path.stat().st_size > 0:
-        return path  # already downloaded, skip
+        return path
+
+    pdf_url = f"https://arxiv.org/pdf/{paper.paper_id.split(':')[-1]}"
+    last_error = None
 
     for attempt in range(1, retries + 1):
         try:
-            r = requests.get(paper.url, headers=HEADERS, timeout=60)
-            r.raise_for_status()
-            if "pdf" not in r.headers.get("Content-Type", "").lower():
-                raise ValueError("Response is not a PDF")
-            path.write_bytes(r.content)
-            time.sleep(3)  # be polite to ArXiv
+            response = requests.get(
+                pdf_url,
+                headers=HEADERS,
+                timeout=60,
+            )
+            response.raise_for_status()
+
+            content_type = response.headers.get("Content-Type", "").lower()
+            if "pdf" not in content_type or not response.content.startswith(b"%PDF"):
+                raise ValueError("Response is not a valid PDF")
+
+            path.write_bytes(response.content)
+            time.sleep(3)
             return path
-        except Exception as e:
-            print(f"  download attempt {attempt}/{retries} failed for {paper.paper_id}: {e}")
-            time.sleep(2 * attempt)
+
+        except (requests.RequestException, OSError, ValueError) as exc:
+            last_error = exc
+            print(
+                f"Download attempt {attempt}/{retries} failed "
+                f"for {paper.paper_id}: {exc}"
+            )
+            if attempt < retries:
+                time.sleep(2 * attempt)
+
+    print(f"PDF download failed for {paper.paper_id}: {last_error}")
     return None
 
 
-# ---------- 2. Extract ----------
 def extract_text(pdf_path):
-    """Return (raw_text, page_count) using PyMuPDF."""
-    with pymupdf.open(pdf_path) as doc:
-        pages = [page.get_text() for page in doc]
+    """Return extracted PDF text and page count."""
+    with pymupdf.open(pdf_path) as document:
+        pages = [page.get_text() for page in document]
         return "\n".join(pages), len(pages)
 
 
-# ---------- 3. Clean ----------
 def clean_text(text):
-    # re-join words split by a hyphen at the end of a line: "learn-\ning" -> "learning"
-    text = re.sub(r"-\n(\w)", r"\1", text)
-    # drop lines that contain only a page number
+    """Normalize extracted text and remove a detected references section."""
+    if not isinstance(text, str):
+        raise ValueError("text must be a string")
+
+    text = re.sub(r"-\s*\n(\w)", r"\1", text)
     text = re.sub(r"(?m)^\s*\d{1,4}\s*$", "", text)
-    # cut off the References section (usually in the second half of the paper)
-    matches = list(re.finditer(r"(?im)^\s*(references|bibliography)\s*$", text))
-    if matches and matches[-1].start() > len(text) * 0.5:
-        text = text[: matches[-1].start()]
-    # keep paragraph breaks, turn single newlines into spaces
+
+    headings = list(
+        re.finditer(
+            r"(?im)^\s*(references|bibliography)\s*$",
+            text,
+        )
+    )
+    if headings:
+        heading = headings[-1]
+        if heading.start() > len(text) * 0.5:
+            text = text[:heading.start()]
+
     text = re.sub(r"\n{2,}", "\n\n", text)
     text = re.sub(r"(?<!\n)\n(?!\n)", " ", text)
-    # collapse extra spaces
     text = re.sub(r"[ \t]+", " ", text)
+
     return text.strip()
 
 
-# ---------- 4. Process one paper and save ----------
 def process_paper(paper):
-    """Full pipeline for one paper. Falls back to the abstract if no PDF text."""
+    """Process one paper, using its abstract if PDF extraction is unavailable."""
+    if not getattr(paper, "paper_id", None):
+        raise ValueError("Paper must have a valid paper_id")
+
     record = paper.to_dict()
-    record.update({"text_source": "abstract", "num_pages": 0, "full_text": paper.abstract})
+    abstract = getattr(paper, "abstract", "") or ""
+
+    record.update(
+        {
+            "text_source": "abstract",
+            "num_pages": 0,
+            "full_text": abstract,
+        }
+    )
 
     pdf_path = download_pdf(paper)
-    if pdf_path:
+
+    if pdf_path is not None:
         try:
-            raw, pages = extract_text(pdf_path)
-            cleaned = clean_text(raw)
-            if len(cleaned) > 500:  # sanity check: extraction really worked
-                record.update({"text_source": "pdf", "num_pages": pages, "full_text": cleaned})
-        except Exception as e:
-            print(f"  extraction failed for {paper.paper_id}: {e}")
+            raw_text, page_count = extract_text(pdf_path)
+            cleaned_text = clean_text(raw_text)
+
+            if len(cleaned_text) > 500:
+                record.update(
+                    {
+                        "text_source": "pdf",
+                        "num_pages": page_count,
+                        "full_text": cleaned_text,
+                    }
+                )
+        except (OSError, ValueError, RuntimeError) as exc:
+            print(f"PDF extraction failed for {paper.paper_id}: {exc}")
 
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
-    out = PROCESSED_DIR / f"{safe_name(paper.paper_id)}.json"
-    out.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
+    output_path = PROCESSED_DIR / f"{safe_name(paper.paper_id)}.json"
+    output_path.write_text(
+        json.dumps(record, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
     return record
 
 
 def run(topic, max_results=3):
-    papers = search_all(topic, max_results)
-    print(f"Found {len(papers)} papers for '{topic}'\n")
+    """Fetch and process research papers for a topic."""
+    if not isinstance(topic, str) or not topic.strip():
+        raise ValueError("topic must be a non-empty string")
+    if type(max_results) is not int or max_results < 1:
+        raise ValueError("max_results must be a positive integer")
+
+    papers = search_all(topic.strip(), max_results)
+    print(f"Found {len(papers)} papers for '{topic.strip()}'\n")
+
     results = []
-    for p in papers:
-        print(f"Processing {p.paper_id}: {p.title[:60]}")
-        rec = process_paper(p)
-        print(f"  -> source: {rec['text_source']}, {len(rec['full_text'])} characters\n")
-        results.append(rec)
+    for paper in papers:
+        print(f"Processing {paper.paper_id}: {paper.title[:60]}")
+        record = process_paper(paper)
+        print(
+            f"  -> source: {record['text_source']}, "
+            f"{len(record['full_text'])} characters\n"
+        )
+        results.append(record)
+
     return results
 
 
