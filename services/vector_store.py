@@ -1,3 +1,4 @@
+
 import os
 
 from dotenv import load_dotenv
@@ -72,7 +73,15 @@ def paper_exists(paper_id):
     return vector_id in response.vectors
 
 
-def store_paper(paper_id, title, text, source, url=""):
+def store_paper(
+    paper_id,
+    title,
+    text,
+    source,
+    url="",
+    publication_types=None,
+    peer_review_status="unverified",
+):
     """Chunk a paper and store its evidence and citation metadata."""
     if not isinstance(paper_id, str) or not paper_id.strip():
         raise ValueError("Paper ID is required.")
@@ -88,6 +97,18 @@ def store_paper(paper_id, title, text, source, url=""):
 
     if not isinstance(url, str):
         raise ValueError("Paper URL must be a string.")
+
+    if publication_types is None:
+        publication_types = []
+
+    if (
+        not isinstance(publication_types, list)
+        or any(not isinstance(item, str) for item in publication_types)
+    ):
+        raise ValueError("publication_types must be a list of strings.")
+
+    if not isinstance(peer_review_status, str) or not peer_review_status.strip():
+        raise ValueError("peer_review_status must be a non-empty string.")
 
     chunks = chunk_text(text)
     _, index = get_clients()
@@ -106,6 +127,8 @@ def store_paper(paper_id, title, text, source, url=""):
                 "text": chunk,
                 "source": source.strip(),
                 "url": url.strip(),
+                "publication_types": publication_types,
+                "peer_review_status": peer_review_status.strip(),
             },
         })
 
@@ -151,6 +174,8 @@ def search_papers(query, top_k=3):
         text = metadata.get("text")
         source = metadata.get("source")
         url = metadata.get("url")
+        publication_types = metadata.get("publication_types")
+        peer_review_status = metadata.get("peer_review_status")
 
         papers.append({
             "paper_id": paper_id if isinstance(paper_id, str) else "",
@@ -165,6 +190,17 @@ def search_papers(query, top_k=3):
             "text": text if isinstance(text, str) else "",
             "source": source if isinstance(source, str) else "",
             "url": url if isinstance(url, str) else "",
+            "publication_types": (
+                publication_types
+                if isinstance(publication_types, list)
+                and all(isinstance(item, str) for item in publication_types)
+                else []
+            ),
+            "peer_review_status": (
+                peer_review_status
+                if isinstance(peer_review_status, str)
+                else "unverified"
+            ),
             "score": match.score,
         })
 
