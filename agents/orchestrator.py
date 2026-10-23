@@ -67,7 +67,11 @@ def _fetch_unique_papers(research_topic: str, max_results: int) -> list:
 
     from services.paper_fetcher import search_all
 
-    papers = search_all(research_topic, max_results=max_results)
+    papers = search_all(
+        research_topic,
+        max_results=max_results,
+        peer_reviewed_only=True,
+    )
     unique_papers = {}
 
     for paper in papers:
