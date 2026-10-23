@@ -292,3 +292,58 @@ def test_rag_keeps_citations_linked_to_correct_sources():
 
     assert "https://example.org/protein" not in evidence_1
     assert "https://example.org/diabetes" not in evidence_2
+
+
+
+def test_rag_rejects_non_dictionary_paper():
+    with pytest.raises(ValueError, match="dictionary"):
+        run_rag_research(
+            "Diabetes prediction",
+            search_papers=lambda *args, **kwargs: ["invalid paper"],
+        )
+
+
+def test_rag_rejects_workflow_result_that_is_not_a_dictionary():
+    with patch(
+        "agents.rag_orchestrator.run_research_workflow",
+        return_value="invalid result",
+    ):
+        with pytest.raises(ValueError, match="dictionary"):
+            run_rag_research(
+                "Diabetes prediction",
+                search_papers=lambda *args, **kwargs: [sample_paper()],
+            )
+
+
+def test_rag_uses_fallback_metadata_when_fields_are_missing():
+    paper = {
+        "text": "Evidence about diabetes prediction.",
+    }
+
+    with patch(
+        "agents.rag_orchestrator.run_research_workflow",
+        return_value=mock_workflow_result(),
+    ):
+        result = run_rag_research(
+            "Diabetes prediction",
+            search_papers=lambda *args, **kwargs: [paper],
+        )
+
+    assert result["citation_metadata"] == [
+        {
+            "evidence_id": 1,
+            "title": "Title unavailable",
+            "source": "Source unavailable",
+            "url": "URL unavailable",
+        }
+    ]
+
+
+def test_rag_rejects_retrieved_paper_without_usable_text():
+    with pytest.raises(ValueError, match="no usable text"):
+        run_rag_research(
+            "Diabetes prediction",
+            search_papers=lambda *args, **kwargs: [
+                {"title": "Paper without text", "text": None}
+            ],
+        )
