@@ -211,6 +211,12 @@ def ingest_research_papers(
                 text=full_text.strip(),
                 source=source,
                 url=url,
+                publication_types=getattr(
+                    paper, "publication_types", []
+                ),
+                peer_review_status=getattr(
+                    paper, "peer_review_status", "unverified"
+                ),
             )
             stored_papers.append(storage_result)
 
