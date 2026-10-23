@@ -4,8 +4,8 @@ import pytest
 
 from services.vector_store import search_papers
 
-
-
+def mock_embedding():
+    return [0.1] * 768
 
 def test_search_papers_can_filter_for_verified_peer_review():
     pinecone_results = MagicMock()
