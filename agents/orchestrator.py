@@ -1,6 +1,19 @@
-
 from agents.code_executor import execute_experiment
 from agents.langchain_workflow import run_langchain_research
+
+
+def _validate_research_topic(research_topic: str) -> None:
+    if not isinstance(research_topic, str) or not research_topic.strip():
+        raise ValueError("Research topic cannot be empty.")
+
+
+def _validate_max_results(max_results: int) -> None:
+    if (
+        not isinstance(max_results, int)
+        or isinstance(max_results, bool)
+        or max_results < 1
+    ):
+        raise ValueError("max_results must be a positive integer.")
 
 
 def run_research_workflow(
@@ -9,13 +22,11 @@ def run_research_workflow(
 ) -> dict:
     """Coordinate scientific research agents using LangChain."""
 
-    if not research_topic.strip():
-        raise ValueError("Research topic cannot be empty.")
+    _validate_research_topic(research_topic)
 
-    if not paper_text.strip():
+    if not isinstance(paper_text, str) or not paper_text.strip():
         raise ValueError("Paper text cannot be empty.")
 
-    # Run Literature Reviewer and Hypothesis Generator through LangChain
     research_result = run_langchain_research(
         topic=research_topic,
         paper_text=paper_text,
@@ -48,59 +59,71 @@ def run_research_from_papers(
     """Fetch scientific papers and run the research agents."""
 
     from services.paper_fetcher import search_all
+    from services.pdf_processor import process_paper
 
-    if not research_topic.strip():
-        raise ValueError("Research topic cannot be empty.")
+    _validate_research_topic(research_topic)
+    _validate_max_results(max_results)
 
-    if max_results < 1:
-        raise ValueError("max_results must be at least 1.")
-
-    # Step 1: Fetch papers from arXiv and PubMed
     papers = search_all(research_topic, max_results=max_results)
 
-    # Remove duplicate papers using unique paper IDs
     unique_papers = {}
-
     for paper in papers:
-        unique_papers.setdefault(paper.paper_id, paper)
+        paper_id = getattr(paper, "paper_id", None)
+        if paper_id:
+            unique_papers.setdefault(paper_id, paper)
 
     papers = list(unique_papers.values())
 
     if not papers:
         raise ValueError("No research papers found for this topic.")
 
-    # Step 2: Extract PDF text when available
-    from services.pdf_processor import process_paper
+    processed_papers = []
+    for paper in papers:
+        try:
+            record = process_paper(paper)
+        except Exception as error:
+            print(
+                f"[warning] Failed to process paper "
+                f"{getattr(paper, 'paper_id', 'unknown')}: {error}"
+            )
+            continue
 
-    processed_papers = [
-        process_paper(paper)
-        for paper in papers
-    ]
+        if not isinstance(record, dict):
+            continue
+
+        full_text = record.get("full_text")
+        if not isinstance(full_text, str) or not full_text.strip():
+            continue
+
+        processed_papers.append({
+            "paper": paper,
+            "record": record,
+        })
+
+    if not processed_papers:
+        raise ValueError("No papers could be processed into usable text.")
 
     paper_text = "\n\n".join(
-        f"Title: {record['title']}\n"
-        f"Source: {record['source']}\n"
-        f"URL: {record['url']}\n"
-        f"Text: {record['full_text']}"
-        for record in processed_papers
+        f"Evidence [{index}]\n"
+        f"Title: {item['record'].get('title', 'Title unavailable')}\n"
+        f"Source: {item['record'].get('source', 'Source unavailable')}\n"
+        f"URL: {item['record'].get('url', 'URL unavailable')}\n"
+        f"Text: {item['record']['full_text'].strip()}"
+        for index, item in enumerate(processed_papers, start=1)
     )
 
-    # Step 3: Run LangChain agent workflow
     result = run_research_workflow(
         research_topic=research_topic,
         paper_text=paper_text,
     )
 
-    # Step 4: Include paper information
     result["papers"] = [
-        paper.to_dict()
-        for paper in papers
+        item["paper"].to_dict()
+        for item in processed_papers
     ]
-    result["paper_count"] = len(papers)
+    result["paper_count"] = len(processed_papers)
 
     return result
-
-
 
 
 def ingest_research_papers(
@@ -113,33 +136,42 @@ def ingest_research_papers(
     from services.pdf_processor import process_paper
     from services.vector_store import store_paper
 
-    if not research_topic.strip():
-        raise ValueError("Research topic cannot be empty.")
-
-    if max_results < 1:
-        raise ValueError("max_results must be at least 1.")
+    _validate_research_topic(research_topic)
+    _validate_max_results(max_results)
 
     papers = search_all(research_topic, max_results=max_results)
 
-    unique_papers = {
-        paper.paper_id: paper
-        for paper in papers
-    }
+    unique_papers = {}
+    for paper in papers:
+        paper_id = getattr(paper, "paper_id", None)
+        if paper_id:
+            unique_papers.setdefault(paper_id, paper)
 
     stored_papers = []
 
     for paper in unique_papers.values():
-        record = process_paper(paper)
+        try:
+            record = process_paper(paper)
+        except Exception as error:
+            print(
+                f"[warning] Failed to process paper "
+                f"{getattr(paper, 'paper_id', 'unknown')}: {error}"
+            )
+            continue
 
-        if not record["full_text"].strip():
+        if not isinstance(record, dict):
+            continue
+
+        full_text = record.get("full_text")
+        if not isinstance(full_text, str) or not full_text.strip():
             continue
 
         result = store_paper(
             paper_id=paper.paper_id,
-            title=record["title"],
-            text=record["full_text"],
-            source=record["source"],
-            url=record["url"],
+            title=record.get("title", getattr(paper, "title", "Title unavailable")),
+            text=full_text.strip(),
+            source=record.get("source", getattr(paper, "source", "unknown")),
+            url=record.get("url", getattr(paper, "url", "")),
         )
 
         stored_papers.append(result)
@@ -149,8 +181,6 @@ def ingest_research_papers(
         "paper_count": len(stored_papers),
         "stored_papers": stored_papers,
     }
-
-
 
 
 def run_experiment_with_feedback(
@@ -174,8 +204,6 @@ def run_experiment_with_feedback(
     }
 
 
-
-
 def run_learning_experiments(
     experiment_options: dict[str, list[float]],
     rounds: int = 3,
@@ -185,15 +213,13 @@ def run_learning_experiments(
 
     from agents.experiment_selector import ExperimentSelector
 
-    if not experiment_options:
+    if not isinstance(experiment_options, dict) or not experiment_options:
         raise ValueError("Experiment options cannot be empty.")
 
     if not isinstance(rounds, int) or isinstance(rounds, bool) or rounds < 1:
         raise ValueError("Rounds must be a positive integer.")
 
     selector = ExperimentSelector(exploration_rate=0.2)
-
-    # Restore rewards from previous runs.
     selector.load(history_path)
 
     history = []
@@ -215,7 +241,6 @@ def run_learning_experiments(
             "feedback": result["feedback"],
         })
 
-    # Save updated rewards for the next run.
     selector.save(history_path)
 
     return {
