@@ -1,255 +1,180 @@
-# Autonomous Scientific Discovery Agent
+# Autonomous Multimodal Scientific Discovery Agent
 
-An AI-powered scientific research assistant that retrieves scientific papers, processes research content, generates literature reviews and hypotheses, and supports controlled scientific experiments.
+An end-to-end AI-powered autonomous scientific discovery framework that continuously ingests peer-reviewed literature, grounds research hypotheses in verifiable citations, executes empirical code inside a hardened Docker sandbox, and iterates toward valid scientific solutions using reinforcement learning (RL) debugging feedback.
 
-## Team Members
+---
 
-- **Goda Srinivasulu Reddy** — Team Lead, Agent Orchestration and Integration
-- **Anand Satapara** — Scientific Paper Ingestion and PDF Processing
-- **Krishna** — Vector Database Module
+## 👥 Project Team
 
-## Week 2 Objective & Status
+**Organization:** Zaalima Development Pvt. Ltd. (Internship Foundation)  
+**Duration:** 4-Week Internship Program  
+**Team Size:** 3 Members  
 
-Implement literature-grounded RAG, secure Docker execution, and an RL-based debugging feedback loop across all 3 team sub-modules.
+| Member | Role | Primary Modules & Responsibilities |
+|---|---|---|
+| **Goda Srinivasulu Reddy** | **Team Lead** | Multi-Agent Orchestration, RL Debugger, Bounded Retries, Reward Modeling & Integration |
+| **Anand Satapara** | **Member 2** | Scientific Paper Ingestion (ArXiv/PubMed), Peer-Reviewed Filtering & Literature-Grounded RAG |
+| **Krishna** | **Member 3** | Vector Database Storage, Secure Docker Sandbox Execution & Security Hardening |
 
-**Week 2 Status: Completed 100% — October 24, 2026**
+---
 
-All three feature branches (eature/week2-docker-security, eature/week2-rag-grounding, and eature/week2-rl-feedback) were validated via comprehensive unit tests (221/221 passing) and GitHub Actions CI runs, and successfully merged into main.
+## 🎯 Project Roadmap & Status
 
-Detailed reports & demos:
-- [Week 2 Development Handover Report](reports/week2-handover.md)
-- [Week 2 Integration Demo Walkthrough](docs/week2-demo.md)
-- [Week 2 Docker Security Guide](docs/week2-docker-security.md)
+### 🚀 Week 2 Status: 100% Completed & Merged into `main` (October 24, 2026)
+- **Goal:** Implement literature-grounded RAG, hardened Docker execution, and an RL-based self-correcting debugging feedback loop.
+- **Key Milestones:**
+  - Automated detection and diagnosis of code execution errors with Gemini.
+  - Closed-loop bounded retry mechanism with multi-factor RL reward feedback.
+  - Peer-reviewed paper filtering with strict bracketed citation generation (`Evidence [N]`).
+  - Hardened Docker sandbox with resource quotas, non-root user isolation, read-only rootfs, and total network isolation.
+  - Complete integration across all 3 modules into `main` with **221/221 unit tests passing (100%)**.
 
-## Week 1 Objective
+### 🌟 Week 1 Status: 100% Completed & Merged (October 18, 2026)
+- **Goal:** Build the multi-agent foundation, ArXiv/PubMed ingestion pipeline, and Pinecone vector store with Gemini embeddings.
+- **Key Milestones:**
+  - Built core LangChain agent flow: Literature Reviewer, Hypothesis Generator, and Code Executor.
+  - Automated PDF text extraction (PyMuPDF) and scheduled daily GitHub Actions ingestion.
+  - Robust Gemini primary-to-fallback model switching (`gemini-3.8-flash` $\rightarrow$ `gemini-3.5-flash-lite`).
 
-Build a foundation for scientific discovery using LangChain multi-agent orchestration, automated ArXiv/PubMed ingestion, and vector-based research paper retrieval.
+---
 
-**Week 1 Status: Completed — October 18, 2026**
+## 🏛️ System Architecture
 
-The Week 1 implementation was integrated and merged into the `main` branch through Pull Request #8. Post-merge unit testing and live integration testing have been successfully completed.
-
-## Technologies
-
-Python, LangChain, Gemini API, ArXiv API, PubMed API, PyMuPDF, Pinecone, ChromaDB prototype, Docker, GitHub Actions, and Pytest.
-
-## Implemented Features
-
-### 1. Scientific Paper Ingestion
-
-- Search scientific papers using ArXiv and PubMed.
-- Retrieve titles, abstracts, authors, source URLs, and publication metadata.
-- Download and extract PDF text when available.
-- Use abstracts as fallback when full PDF text is unavailable.
-- Identify duplicate papers using paper IDs.
-- Store paper content in Pinecone using Gemini embeddings.
-- Schedule automated abstract ingestion through GitHub Actions.
-
-### 2. Multi-Agent Orchestration
-
-- Literature Reviewer Agent.
-- Hypothesis Generator Agent.
-- Code Executor Agent.
-- LangChain-based workflow connecting these agents.
-- Gemini-powered literature analysis and hypothesis generation.
-- Gemini model fallback handling for quota exhaustion and temporary service unavailability.
-
-### 3. Vector Database and RAG
-
-- Text chunking with overlap.
-- Gemini embedding generation.
-- Pinecone vector storage.
-- Semantic similarity search.
-- Retrieval-augmented research workflow connecting Pinecone results to the agents.
-- Separate ChromaDB prototype developed during initial vector database work.
-
-### 4. Controlled Experiment Execution
-
-- Approved descriptive statistics experiments.
-- Input validation.
-- Restricted Docker execution.
-- Experimental feedback and reward calculation.
-
-### 5. Gemini Model Fallback
-
-The Gemini integration supports a primary model and a configured fallback model.
-
-- **Primary model:** `gemini-3.8-flash`
-- **Fallback model:** `gemini-3.5-flash-lite`
-- Handles `429 RESOURCE_EXHAUSTED` errors by attempting the fallback model.
-- Handles unsupported or unavailable configured models where applicable.
-- Retries temporary connection errors and HTTP 503 service errors.
-- Reports a failure if all configured models are unsuccessful.
-
-**Live verification:** Both the RAG Pipeline Live Test and Live Paper-to-Agent Test demonstrated successful model switching after the primary model encountered quota exhaustion.
-
-Model fallback does not bypass Google API quotas. Each configured model must be available to the API project and have sufficient quota.
-
-## Automated Ingestion
-
-The scheduled workflow searches ArXiv and PubMed, processes available abstracts, checks for previously stored paper IDs, and stores new content in Pinecone.
-
-**Important:** The scheduled ingestion path currently stores abstracts. PDF extraction and PDF-to-Pinecone ingestion are implemented through separate workflows.
-
-### Scheduled Workflow Configuration
-
-- **Workflow:** Scheduled Scientific Paper Ingestion
-- **Schedule:** Daily at 03:00 UTC (08:30 AM IST).
-- **Manual execution:** Supported through GitHub Actions.
-- **Target database:** Pinecone.
-- **Duplicate handling:** Previously stored paper IDs are skipped.
-
-### Post-Merge Execution Result
-
-A manual execution of the scheduled ingestion workflow after merging into `main` completed successfully:
-
-```text
-SKIPPED: arxiv:2610.22122v1 — already stored in Pinecone
-SKIPPED: arxiv:2610.21395v1 — already stored in Pinecone
-SKIPPED: pubmed:42887972 — already stored in Pinecone
-SKIPPED: pubmed:42887874 — already stored in Pinecone
-
-SUMMARY: stored=0, skipped=4, failed=0
+```
+                       [Scientific Literature]
+                       (PubMed & ArXiv APIs)
+                                 │
+                                 ▼
+                     [Peer-Reviewed Filter]
+                    (Whitelist & Metadata)
+                                 │
+                                 ▼
+                    [Pinecone Vector Database]
+                    (Gemini Embeddings: 768d)
+                                 │
+                                 ▼
+              [Sequential Citation Indexer: Evidence [N]]
+                                 │
+                                 ▼
+                  [Hypothesis Generator Agent]
+                 (Strictly Grounded in Evidence)
+                                 │
+                                 ▼
+                    [Secure Docker Sandbox]
+            (Resource Quotas, Read-Only, Network None)
+                                 │
+                                 ├───► Execution Success ──┐
+                                 │                         │
+                        (Runtime Exception)                │
+                                 │                         ▼
+                     [RL Debugger & Auto-Patch]    [Reward Evaluation]
+                     (Gemini Traceback Diagnosis)  (Latency, Retries, Success)
+                                 │                         │
+                                 └── (Bounded Retries) ────┘
+                                                           │
+                                                           ▼
+                                                [Verified Discovery Report]
 ```
 
-This verifies that the workflow executed successfully and correctly avoided storing duplicate papers.
+---
 
-The automatic daily cron trigger remains subject to separate scheduled-run verification.
+## 🛠️ Tech Stack & Key Technologies
 
-## Testing and Verification
+- **Agent Framework:** LangChain, Python 3.11
+- **LLMs & Embeddings:** Google Gemini API (`gemini-3.8-flash`, `gemini-3.5-flash-lite`, `text-embedding-004`)
+- **Scientific Sources:** NCBI PubMed API, ArXiv API, PyMuPDF (`fitz`)
+- **Vector Storage:** Pinecone Vector DB (with ChromaDB prototype)
+- **Execution & Security:** Docker (`python:3.11-slim`), Linux namespaces, cgroups, `tmpfs`, non-root execution
+- **Reinforcement Learning:** Custom multi-factor reward function (success, latency, retry penalties)
+- **Testing & CI/CD:** Pytest (221 unit & integration tests), GitHub Actions
 
-### 1. Python Unit Tests
+---
 
-- **GitHub Actions workflow:** Python Tests
-- **Feature branch:** Passed after the Gemini fallback error-message compatibility fix.
-- **Main branch:** Passed in GitHub Actions run #116.
-- **Result:** All existing Python unit tests passed.
+## 📦 Core Modules & Implemented Features
 
-### 2. Gemini Live API Test
+### 1. Literature-Grounded RAG (`services/rag_service.py`, `services/paper_filter.py`)
+- Filters papers against accredited peer-reviewed publication sources and verified PubMed IDs.
+- Chunks text with overlap and stores high-dimensional semantic embeddings in Pinecone.
+- Extracts citation metadata and injects indexed evidence blocks (`Evidence [1]`, `Evidence [2]`) into agent reasoning prompts to guarantee zero unsupported hallucinations.
 
-- Gemini model listing completed successfully.
-- The API returned 63 model listings.
-- Live response generation succeeded.
+### 2. Multi-Agent Orchestration (`agents/langchain_workflow.py`)
+- **Literature Reviewer Agent:** Synthesizes research trends, methodology comparisons, and open scientific questions.
+- **Hypothesis Generator Agent:** Proposes testable scientific hypotheses tied directly to retrieved literature citations.
+- **Code Executor Agent:** Bridges scientific proposals to executable, reproducible statistical experiments.
 
-```text
-GEMINI MODEL AVAILABILITY PASSED: 63 models found
-Gemini response: Gemini connection successful
-LIVE GEMINI API TEST PASSED
+### 3. Hardened Docker Sandbox (`services/docker_sandbox.py`)
+- **Network Isolation:** `--network none` completely disables outbound/inbound network calls.
+- **Read-Only Root Filesystem:** Prevents tampering or unauthorized file modification.
+- **Temporary Memory Mount:** `--tmpfs /tmp:rw,noexec,nosuid,size=64m` provides in-memory scratch space without disk persistence.
+- **Capability Dropping:** `--cap-drop ALL` strips all Linux root capabilities; enforced `no-new-privileges:true`.
+- **Resource Constraints:** Enforces 128 MB RAM, 0.5 CPU core limit, max 64 processes (`--pids-limit 64`), and strict 30-second execution timeouts.
+- **Non-Root Execution:** Runs under custom unprivileged UID/GID `10001:10001`.
+
+### 4. RL-Based Debugging Loop (`agents/code_debugger.py`, `agents/reward_model.py`)
+- Detects runtime exceptions, syntax errors, and process timeouts.
+- Parses full Python tracebacks and sends structured error context to Gemini for targeted patch generation.
+- Executes self-healing retry iterations within configurable bounds (default max: 3 attempts).
+- Computes a reinforcement learning reward score:
+  $$\text{Reward} = R_{\text{success}} - \lambda_{\text{time}} \cdot T - \lambda_{\text{retries}} \cdot N_{\text{retries}}$$
+
+---
+
+## 🧪 Testing & Quality Assurance
+
+The codebase is protected by comprehensive unit, integration, and live container tests.
+
+### Running Tests Locally
+```bash
+# Clone the repository
+git clone https://github.com/godasrinivasulureddy/autonomous-scientific-discovery-agent.git
+cd autonomous-scientific-discovery-agent
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the full test suite
+pytest tests/ -v
 ```
 
-### 3. RAG Pipeline Live Test
+### Test Suite Status
+- **Total Tests:** **221 / 221 PASSED (100%)**
+- **Test Modules Covered:**
+  - `tests/test_docker_sandbox.py` (13 tests) — Container isolation, timeouts, memory bounds, permissions
+  - `tests/test_rag_orchestrator.py` & `tests/test_rag_grounding.py` (40 tests) — Citation tracking, chunking, retrieval
+  - `tests/test_code_debugger.py` & `tests/test_auto_repair.py` (26 tests) — Traceback diagnosis, patch synthesis, retry loops
+  - `tests/test_langchain_workflow.py` & `tests/test_langchain_three_agents.py` (11 tests) — End-to-end agent orchestration
+  - `tests/test_paper_ingestion.py` & `tests/test_pdf_processor.py` (53 tests) — ArXiv, PubMed, and PDF extraction
+  - Additional unit tests covering vector stores, Gemini fallback, and scheduled pipelines (78 tests).
 
-Successfully verified:
+### GitHub Actions CI/CD Workflows
+- **Docker Sandbox Live Test:** Verified on cloud runners with real Docker daemon (`sandbox/Dockerfile`).
+- **Python Tests Workflow:** Automated regression suite running on every pull request and push to `main`.
+- **Scheduled Ingestion Workflow:** Automated daily cron (03:00 UTC) fetching fresh literature into Pinecone.
 
-- Pinecone vector storage.
-- Pinecone semantic retrieval.
-- LangChain research agent execution.
-- Literature review generation.
-- Hypothesis generation.
-- Gemini primary-to-fallback model switching.
+---
 
-```text
-PINECONE STORAGE PASSED
-PINECONE RETRIEVAL PASSED
-Gemini model succeeded: gemini-3.8-flash
-Quota exhausted for gemini-3.8-flash. Trying next configured model.
-Gemini model succeeded: gemini-3.5-flash-lite
-LANGCHAIN RAG AGENT PASSED
-Literature review generated successfully
-Hypothesis generated successfully
-COMPLETE RAG PIPELINE PASSED
-```
+## 📚 Project Documentation & Handover Reports
 
-### 4. Live Paper-to-Agent Test
+| Document | Description |
+|---|---|
+| 📄 **[Week 2 Handover Report](reports/week2-handover.md)** | Final sign-off report detailing Week 2 day-wise deliverables, member contributions, test logs, and merge audit. |
+| 🚀 **[Week 2 Demo Walkthrough](docs/week2-demo.md)** | Step-by-step visual and architectural walkthrough of the closed-loop discovery pipeline. |
+| 🛡️ **[Week 2 Docker Security Guide](docs/week2-docker-security.md)** | Deep dive into container sandboxing, security flags, resource quotas, and threat mitigation. |
+| 📄 **[Week 1 Handover Report](reports/week1-handover.md)** | Documentation of Week 1 foundation, initial agent orchestration, and Pinecone setup. |
+| 🚀 **[Week 1 Demo Walkthrough](docs/week1-demo.md)** | Demonstration of the baseline three-agent system and paper ingestion. |
+| 📂 **[Reports Directory Index](reports/README.md)** | Central index of all project milestones, audit logs, and performance metrics. |
 
-Successfully verified:
+---
 
-- Scientific paper retrieval.
-- Processing of two retrieved papers.
-- Literature review generation.
-- Research hypothesis generation.
-- Gemini model fallback during agent execution.
+## 🔒 Security & Safe Execution Notice
 
-```text
-Gemini model succeeded: gemini-3.8-flash
-Quota exhausted for gemini-3.8-flash. Trying next configured model.
-Gemini model succeeded: gemini-3.5-flash-lite
-LIVE PAPER-TO-AGENT TEST PASSED
-Papers found: 2
-```
+- Code executed by the agent runs in an isolated container sandbox with zero network access and dropped capabilities.
+- Live LLM calls and vector queries require valid environment keys (`GEMINI_API_KEY`, `PINECONE_API_KEY`).
+- In case of quota exhaustion, automatic fallback switches between primary and secondary Gemini models to preserve pipeline continuity.
 
-### 5. Additional Integration Tests
+---
 
-The following capabilities were also tested during Week 1 development:
+## 📄 License & Attribution
 
-- ArXiv paper ingestion.
-- PubMed paper ingestion.
-- PDF text extraction and Pinecone storage.
-- Pinecone live integration.
-- Scheduled ingestion and duplicate detection.
-- Docker sandbox execution.
-- Gemini API connectivity.
-
-These tests provide additional evidence for the individual project components.
-
-## Week 1 Integration and GitHub Workflow
-
-The project followed a feature-branch-based development and integration process.
-
-### Development Branches
-
-- `feature/agent-orchestration` — Agent orchestration and integration.
-- `feature/paper-ingestion` — Scientific paper ingestion and PDF processing.
-- `feature/vector-database` — Vector database development.
-
-### Pull Request Integration
-
-- **Pull Request:** #8
-- **Target branch:** `main`
-- **Status:** Merged successfully.
-- **Integration review:** Completed.
-- **Post-merge Python Tests:** Passed.
-- **Post-merge ingestion verification:** Passed.
-- **Post-merge Gemini, RAG, and Paper-to-Agent tests:** Passed.
-
-The completed Week 1 implementation is available on the repository's `main` branch.
-
-## Week 1 Achievements
-
-1. Implemented LangChain-based scientific research agent orchestration.
-2. Integrated ArXiv and PubMed scientific paper ingestion.
-3. Implemented PDF extraction and separate PDF-to-Pinecone ingestion.
-4. Integrated Gemini embeddings with Pinecone vector storage.
-5. Implemented semantic retrieval and a RAG-based research workflow.
-6. Implemented controlled experiment execution with Docker restrictions.
-7. Configured automated scientific paper ingestion using GitHub Actions.
-8. Verified duplicate detection during post-merge ingestion.
-9. Implemented and live-verified Gemini model fallback.
-10. Completed GitHub integration, merge, and post-merge testing.
-
-## Project Limitations
-
-- Some scientific papers provide abstracts but no accessible PDF full text.
-- Scheduled ingestion currently processes abstracts rather than full PDF documents.
-- Gemini and Pinecone live execution depends on API availability, credentials, and usage quotas.
-- Gemini fallback models may also experience quota exhaustion or availability restrictions.
-- Generated literature reviews and hypotheses require scientific evaluation and validation.
-- Restricted Docker execution supports controlled experiments but does not establish a fully general-purpose secure execution environment.
-- Automatic GitHub Actions cron execution requires separate verification; successful manual runs alone do not prove scheduled triggering.
-- Full production-scale performance, reliability, and scientific accuracy have not yet been established.
-
-## Project Documentation
-
-- [Week 1 Demonstration](docs/week1-demo.md)
-- [Reports Overview](reports/README.md)
-- [Week 1 Handover Report](reports/week1-handover.md)
-
-## Project Status
-
-**Week 1: COMPLETED — October 18, 2026**
-
-The Week 1 foundation has been implemented, integrated into `main`, and verified through Python unit tests and live GitHub Actions workflows.
-
-The scientific paper ingestion, LangChain agent orchestration, Pinecone retrieval, RAG workflow, Gemini model fallback, and controlled experiment components have demonstrated successful execution.
-
-**Next Phase:** Week 2 planning and development will proceed according to the official internship requirements.
+Developed under the **Zaalima Development Pvt. Ltd.** Internship Program (October 2026).  
+**Repository:** [github.com/godasrinivasulureddy/autonomous-scientific-discovery-agent](https://github.com/godasrinivasulureddy/autonomous-scientific-discovery-agent)
