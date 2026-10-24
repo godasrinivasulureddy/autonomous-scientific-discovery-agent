@@ -8,6 +8,19 @@ An AI-powered scientific research assistant that retrieves scientific papers, pr
 - **Anand Satapara** — Scientific Paper Ingestion and PDF Processing
 - **Krishna** — Vector Database Module
 
+## Week 2 Objective & Status
+
+Implement literature-grounded RAG, secure Docker execution, and an RL-based debugging feedback loop across all 3 team sub-modules.
+
+**Week 2 Status: Completed 100% — October 24, 2026**
+
+All three feature branches (eature/week2-docker-security, eature/week2-rag-grounding, and eature/week2-rl-feedback) were validated via comprehensive unit tests (221/221 passing) and GitHub Actions CI runs, and successfully merged into main.
+
+Detailed reports & demos:
+- [Week 2 Development Handover Report](reports/week2-handover.md)
+- [Week 2 Integration Demo Walkthrough](docs/week2-demo.md)
+- [Week 2 Docker Security Guide](docs/week2-docker-security.md)
+
 ## Week 1 Objective
 
 Build a foundation for scientific discovery using LangChain multi-agent orchestration, automated ArXiv/PubMed ingestion, and vector-based research paper retrieval.

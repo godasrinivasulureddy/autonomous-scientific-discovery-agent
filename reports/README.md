@@ -4,6 +4,32 @@
 
 This folder contains development reports, technical documentation, testing evidence, and project handover information.
 
+## Week 2 Development Reports
+
+- [Week 2 Development Handover Report](https://github.com/godasrinivasulureddy/autonomous-scientific-discovery-agent/blob/main/reports/week2-handover.md) — Comprehensive summary of Week 2 implementation, day-wise deliverables, member contributions, test results, and final integration.
+- [Week 2 Project Demo & Architecture Walkthrough](https://github.com/godasrinivasulureddy/autonomous-scientific-discovery-agent/blob/main/docs/week2-demo.md) — Detailed end-to-end walkthrough of Literature-Grounded RAG, Secure Docker Sandbox, and RL Debugging Feedback Loop.
+- [Week 2 Docker Sandbox Security Specification](https://github.com/godasrinivasulureddy/autonomous-scientific-discovery-agent/blob/main/docs/week2-docker-security.md) — Technical documentation of container hardening, security flags, resource limits, and execution policies.
+
+## Week 2 Implementation Status
+
+### Reinforcement Learning & Auto-Debugging (Goda Srinivasulu Reddy)
+- Error detection and structured traceback parsing: IMPLEMENTED AND TESTED
+- Gemini-powered automated code repair: IMPLEMENTED AND TESTED
+- Bounded retry execution loop: IMPLEMENTED AND TESTED
+- Multi-factor RL reward scoring model: IMPLEMENTED AND TESTED
+
+### Literature-Grounded RAG (Anand Satapara)
+- Peer-reviewed source classification and whitelist filtering: IMPLEMENTED AND TESTED
+- Citation metadata enrichment and indexing (Evidence [N]): IMPLEMENTED AND TESTED
+- Grounded hypothesis generation with citation verification: IMPLEMENTED AND TESTED
+- RAG retrieval quality and citation accuracy tests: PASSED
+
+### Secure Docker Sandbox (Krishna)
+- Hardened container restrictions (--network none, --read-only, --cap-drop ALL): IMPLEMENTED AND TESTED
+- Resource limits (128 MB RAM, 0.5 CPU, 64 PIDs, 30s timeout): IMPLEMENTED AND TESTED
+- Non-root user execution (10001:10001) with tmpfs scratchpad: IMPLEMENTED AND TESTED
+- Controlled Python experiment execution bridge: IMPLEMENTED AND TESTED
+
 ## Week 1 Development Reports
 
 - [Week 1 Development Handover Report](https://github.com/godasrinivasulureddy/autonomous-scientific-discovery-agent/blob/main/reports/week1-handover.md) — Final summary of Week 1 implementation, integration, testing results, operational limitations, and handover information.
