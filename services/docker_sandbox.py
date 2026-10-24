@@ -1,6 +1,6 @@
 
-"""Run Python experiments in a resource-restricted Docker container."""
 
+import shutil
 import subprocess
 import uuid
 
@@ -20,11 +20,20 @@ def run_in_sandbox(code: str, timeout: int = 10) -> dict:
     ):
         raise ValueError("Timeout must be between 1 and 30 seconds.")
 
-    # Give each container a unique name for cleanup.
+    docker_executable = shutil.which("docker")
+
+    if docker_executable is None:
+        return {
+            "status": "error",
+            "stdout": "",
+            "stderr": "Docker is not installed or unavailable in PATH.",
+        }
+
     container_name = f"scientific-sandbox-{uuid.uuid4().hex}"
 
     command = [
-        "docker", "run",
+        docker_executable,
+        "run",
         "--rm",
         "--name", container_name,
         "--interactive",
@@ -52,10 +61,9 @@ def run_in_sandbox(code: str, timeout: int = 10) -> dict:
         )
 
     except subprocess.TimeoutExpired:
-        # Best-effort cleanup if execution exceeds the time limit.
         try:
             subprocess.run(
-                ["docker", "rm", "-f", container_name],
+                [docker_executable, "rm", "-f", container_name],
                 capture_output=True,
                 text=True,
                 timeout=5,
@@ -70,11 +78,11 @@ def run_in_sandbox(code: str, timeout: int = 10) -> dict:
             "stderr": "Experiment exceeded its time limit.",
         }
 
-    except FileNotFoundError:
+    except OSError as exc:
         return {
             "status": "error",
             "stdout": "",
-            "stderr": "Docker is not installed or unavailable.",
+            "stderr": f"Unable to execute Docker: {exc}",
         }
 
     return {
@@ -82,3 +90,4 @@ def run_in_sandbox(code: str, timeout: int = 10) -> dict:
         "stdout": result.stdout[:10000],
         "stderr": result.stderr[:10000],
     }
+
