@@ -1,8 +1,10 @@
 
 import pytest
+from unittest.mock import patch
 
 from agents.orchestrator import run_approved_experiment
 from agents.code_executor import execute_experiment
+from agents.hypothesis_generator import generate_hypothesis
 
 
 def test_approved_experiment():
@@ -26,7 +28,6 @@ def test_insufficient_data():
         run_approved_experiment([10])
 
 
-
 def test_standard_deviation():
     result = run_approved_experiment([10, 20, 30])
 
@@ -48,3 +49,151 @@ def test_invalid_experiment_values(invalid_values):
     with pytest.raises(ValueError, match="All values must be numeric"):
         run_approved_experiment(invalid_values)
 
+
+@pytest.mark.parametrize(
+    "research_topic",
+    ["", "   ", None, 123],
+)
+def test_hypothesis_rejects_invalid_topic(research_topic):
+    with pytest.raises(ValueError, match="Research topic"):
+        generate_hypothesis(research_topic, "Relevant literature.")
+
+
+@pytest.mark.parametrize(
+    "literature_review",
+    ["", "   ", None, 123],
+)
+def test_hypothesis_rejects_invalid_literature(literature_review):
+    with pytest.raises(ValueError, match="Literature review"):
+        generate_hypothesis("Research topic", literature_review)
+
+
+def test_hypothesis_uses_literature_and_returns_response():
+    expected = "Hypothesis: Treatment A improves outcome B."
+
+    with patch(
+        "agents.hypothesis_generator.generate_response",
+        return_value=f"  {expected}  ",
+    ) as mock_generate:
+        result = generate_hypothesis(
+            research_topic="Treatment effectiveness",
+            literature_review="Evidence [1] reports an association.",
+        )
+
+    assert result == expected
+
+    prompt = mock_generate.call_args.args[0]
+    assert "Treatment effectiveness" in prompt
+    assert "Evidence [1] reports an association." in prompt
+    assert "Never invent papers" in prompt
+    assert "Supporting Evidence" in prompt
+
+
+@pytest.mark.parametrize("response", ["", "   ", None, 123])
+def test_hypothesis_rejects_empty_or_invalid_response(response):
+    with patch(
+        "agents.hypothesis_generator.generate_response",
+        return_value=response,
+    ):
+        with pytest.raises(ValueError, match="empty response"):
+            generate_hypothesis(
+                "Research topic",
+                "Relevant literature.",
+            )
+
+
+
+from unittest.mock import patch
+
+from agents.hypothesis_generator import generate_hypothesis
+
+
+@patch("agents.hypothesis_generator.generate_response")
+def test_hypothesis_prompt_requires_evidence_citations(mock_generate):
+    mock_generate.return_value = (
+        "Research Gap\nLimited evidence.\n"
+        "Hypothesis\nTreatment A may improve outcome B.\n"
+        "Supporting Evidence\nEvidence [1].\n"
+        "Variables\nA and B.\n"
+        "Proposed Experiment\nCompare treatment and control.\n"
+        "Assumptions and Limitations\nSmall sample size."
+    )
+
+    literature = (
+        "Evidence [1]: Paper on treatment A and outcome B. "
+        "Source: https://example.org/paper"
+    )
+
+    result = generate_hypothesis("Treatment A", literature)
+
+    prompt = mock_generate.call_args.args[0]
+    assert "Never invent papers, authors, findings, URLs, or citations" in prompt
+    assert "Evidence [1]" in prompt
+    assert "Evidence [1]" in result
+
+
+@patch("agents.hypothesis_generator.generate_response")
+def test_hypothesis_prompt_handles_insufficient_evidence(mock_generate):
+    mock_generate.return_value = (
+        "Research Gap\nInsufficient evidence to identify a research gap.\n"
+        "Hypothesis\nCannot propose a grounded hypothesis yet.\n"
+        "Supporting Evidence\nInsufficient evidence.\n"
+        "Variables\nNot established.\n"
+        "Proposed Experiment\nRequires further evidence.\n"
+        "Assumptions and Limitations\nEvidence is insufficient."
+    )
+
+    result = generate_hypothesis(
+        "Treatment A",
+        "Only a brief, inconclusive abstract is available.",
+    )
+
+    prompt = mock_generate.call_args.args[0]
+    assert "explicitly state that limitation" in prompt
+    assert "Never invent papers, authors, findings, URLs, or citations" in prompt
+    assert "Insufficient evidence" in result
+
+
+@patch("agents.hypothesis_generator.generate_response")
+def test_hypothesis_rejects_empty_generated_response(mock_generate):
+    mock_generate.return_value = "   "
+
+    import pytest
+
+    with pytest.raises(ValueError, match="empty response"):
+        generate_hypothesis("Treatment A", "Evidence [1]: sample finding.")
+
+
+@patch("agents.hypothesis_generator.generate_response")
+def test_hypothesis_preserves_multiple_evidence_sources(mock_generate):
+    mock_generate.return_value = (
+        "Research Gap\nLimited combined evidence.\n"
+        "Hypothesis\nCombining treatments may improve outcomes.\n"
+        "Supporting Evidence\n"
+        "Evidence [1] supports treatment A.\n"
+        "Evidence [2] supports treatment B.\n"
+        "Variables\nTreatment combination and outcome.\n"
+        "Proposed Experiment\nCompare individual and combined treatments.\n"
+        "Assumptions and Limitations\nFurther validation is required."
+    )
+
+    literature = (
+        "Evidence [1]: Treatment A improved outcome X. "
+        "Source: https://example.org/paper-A\n"
+        "Evidence [2]: Treatment B improved outcome Y. "
+        "Source: https://example.org/paper-B"
+    )
+
+    result = generate_hypothesis(
+        research_topic="Combined treatment effectiveness",
+        literature_review=literature,
+    )
+
+    prompt = mock_generate.call_args.args[0]
+
+    assert "Evidence [1]" in prompt
+    assert "Evidence [2]" in prompt
+    assert "https://example.org/paper-A" in prompt
+    assert "https://example.org/paper-B" in prompt
+    assert "Evidence [1]" in result
+    assert "Evidence [2]" in result

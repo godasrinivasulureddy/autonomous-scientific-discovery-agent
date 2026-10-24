@@ -34,3 +34,82 @@ def test_langchain_workflow_rejects_empty_input():
         pass
     else:
         raise AssertionError("Expected ValueError for empty topic")
+
+
+
+def test_hypothesis_receives_review_and_original_evidence():
+    paper_text = (
+        "Evidence [1]\n"
+        "Title: Diabetes Prediction Study\n"
+        "Source: Example Journal\n"
+        "URL: https://example.org/diabetes-study\n"
+        "Text: The study evaluates diabetes prediction."
+    )
+
+    with (
+        patch(
+            "agents.langchain_workflow.review_literature",
+            return_value="Research summary",
+        ),
+        patch(
+            "agents.langchain_workflow.generate_hypothesis",
+            return_value="Research hypothesis",
+        ) as mock_hypothesis,
+    ):
+        result = run_langchain_research(
+            topic="Diabetes prediction",
+            paper_text=paper_text,
+        )
+
+    mock_hypothesis.assert_called_once()
+    args, _ = mock_hypothesis.call_args
+
+    assert args[0] == "Diabetes prediction"
+    assert "Research summary" in args[1]
+    assert "Evidence [1]" in args[1]
+    assert "https://example.org/diabetes-study" in args[1]
+    assert result["hypothesis"] == "Research hypothesis"
+
+
+def test_langchain_workflow_preserves_multiple_source_citations():
+    paper_text = (
+        "Evidence [1]\n"
+        "Title: Diabetes Prediction Study\n"
+        "URL: https://example.org/diabetes\n"
+        "Text: Machine learning supports diabetes prediction.\n\n"
+        "Evidence [2]\n"
+        "Title: Clinical Risk Assessment Study\n"
+        "URL: https://example.org/clinical-risk\n"
+        "Text: Clinical factors can support risk assessment."
+    )
+
+    literature_review = (
+        "Evidence [1] discusses diabetes prediction.\n"
+        "Evidence [2] discusses clinical risk assessment."
+    )
+
+    with (
+        patch(
+            "agents.langchain_workflow.review_literature",
+            return_value=literature_review,
+        ),
+        patch(
+            "agents.langchain_workflow.generate_hypothesis",
+            return_value="Hypothesis supported by Evidence [1] and Evidence [2].",
+        ) as mock_hypothesis,
+    ):
+        result = run_langchain_research(
+            topic="Diabetes risk prediction",
+            paper_text=paper_text,
+        )
+
+    args, _ = mock_hypothesis.call_args
+    hypothesis_input = args[1]
+
+    assert literature_review in hypothesis_input
+    assert "Evidence [1]" in hypothesis_input
+    assert "Evidence [2]" in hypothesis_input
+    assert "https://example.org/diabetes" in hypothesis_input
+    assert "https://example.org/clinical-risk" in hypothesis_input
+    assert "Evidence [1]" in result["hypothesis"]
+    assert "Evidence [2]" in result["hypothesis"]

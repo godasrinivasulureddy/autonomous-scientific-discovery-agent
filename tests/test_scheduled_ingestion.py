@@ -5,15 +5,38 @@ from services.paper_fetcher import Paper
 from services.scheduled_ingestion import main
 
 
-def make_paper(paper_id="arxiv:1234.5678"):
+def make_paper(paper_id="pubmed:12345678"):
     return Paper(
         paper_id=paper_id,
         title="Scientific Discovery with Machine Learning",
         abstract="A valid scientific research abstract.",
         authors=["Test Author"],
-        url="https://example.org/paper",
+        url="https://pubmed.ncbi.nlm.nih.gov/12345678/",
         published="2026-10-17",
-        source="arxiv",
+        source="pubmed",
+        publication_types=["Journal Article"],
+        peer_review_status="eligible_for_verification",
+    )
+
+
+def test_requires_peer_reviewed_filter():
+    with (
+        patch(
+            "services.scheduled_ingestion.search_all",
+            return_value=[make_paper()],
+        ) as search,
+        patch(
+            "services.scheduled_ingestion.paper_exists",
+            return_value=True,
+        ),
+        patch("services.scheduled_ingestion.store_paper"),
+    ):
+        main()
+
+    search.assert_called_once_with(
+        "machine learning drug discovery",
+        max_results=2,
+        peer_reviewed_only=True,
     )
 
 
@@ -43,7 +66,7 @@ def test_skips_paper_already_in_pinecone(capsys):
     assert "stored=0, skipped=1, failed=0" in output
 
 
-def test_stores_new_paper(capsys):
+def test_stores_new_paper_with_publication_metadata(capsys):
     paper = make_paper()
 
     with (
@@ -57,15 +80,20 @@ def test_stores_new_paper(capsys):
         ),
         patch(
             "services.scheduled_ingestion.store_paper",
-            return_value={
-                "status": "stored",
-                "chunk_count": 1,
-            },
+            return_value={"status": "stored", "chunk_count": 1},
         ) as store,
     ):
         main()
 
-    store.assert_called_once()
+    store.assert_called_once_with(
+        paper_id=paper.paper_id,
+        title=paper.title,
+        text=paper.abstract,
+        source=paper.source,
+        url=paper.url,
+        publication_types=["Journal Article"],
+        peer_review_status="eligible_for_verification",
+    )
 
     output = capsys.readouterr().out
     assert "stored=1, skipped=0, failed=0" in output
@@ -85,10 +113,7 @@ def test_skips_duplicate_search_results(capsys):
         ),
         patch(
             "services.scheduled_ingestion.store_paper",
-            return_value={
-                "status": "stored",
-                "chunk_count": 1,
-            },
+            return_value={"status": "stored", "chunk_count": 1},
         ) as store,
     ):
         main()

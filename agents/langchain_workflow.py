@@ -28,11 +28,22 @@ def run_langchain_research(
             "literature_review": review,
         }
 
+    
     def hypothesis_step(data: dict) -> dict:
+        hypothesis_input = (
+            "LITERATURE REVIEW:\n"
+            f"{data['literature_review']}\n\n"
+            "ORIGINAL RETRIEVED EVIDENCE — use these evidence IDs "
+            "and source details when supporting claims:\n"
+            f"{data['paper_text']}"
+        )
+
         hypothesis = generate_hypothesis(
             data["topic"],
-            data["literature_review"],
+            hypothesis_input,
         )
+    
+
         return {
             **data,
             "hypothesis": hypothesis,
