@@ -182,3 +182,82 @@ def test_failed_execution_returns_error(docker_available):
 
     assert result["status"] == "error"
     assert result["stderr"] == "Execution failed"
+
+
+def test_execute_experiment_in_docker_success():
+    from agents.code_executor import execute_experiment_in_docker
+
+    mock_output = '{"sample_size": 4, "mean": 25.0, "standard_deviation": 12.909944487358056}'
+
+    with patch(
+        "services.docker_sandbox.run_in_sandbox",
+        return_value={
+            "status": "success",
+           "stdout": mock_output,
+            "stderr": "",
+        },
+    ) as mock_sandbox:
+        result = execute_experiment_in_docker(
+            experiment_name="descriptive_statistics",
+            values=[10, 20, 30, 40],
+        )
+
+    assert result["status"] == "success"
+    assert result["experiment"] == "descriptive_statistics"
+    assert result["sample_size"] == 4
+    assert result["mean"] == 25.0
+    assert result["standard_deviation"] == pytest.approx(12.91, 0.01)
+    mock_sandbox.assert_called_once()
+
+
+def test_execute_experiment_in_docker_unapproved_rejected():
+    from agents.code_executor import execute_experiment_in_docker
+
+    with pytest.raises(ValueError, match="Experiment is not approved"):
+        execute_experiment_in_docker(
+            experiment_name="unapproved_ml_experiment",
+            values=[1.0, 2.0],
+        )
+
+
+def test_execute_experiment_in_docker_invalid_values():
+    from agents.code_executor import execute_experiment_in_docker
+
+    with pytest.raises(ValueError, match="At least two finite numeric values"):
+        execute_experiment_in_docker(
+            experiment_name="descriptive_statistics",
+            values=[10],
+        )
+
+    with pytest.raises(ValueError, match="At least two finite numeric values"):
+        execute_experiment_in_docker(
+            experiment_name="descriptive_statistics",
+            values=[10, "string_val"],
+        )
+
+    with pytest.raises(ValueError, match="At least two finite numeric values"):
+        execute_experiment_in_docker(
+            experiment_name="descriptive_statistics",
+            values=[10, True, 30],
+        )
+
+
+
+def test_execute_experiment_in_docker_timeout_handling():
+    from agents.code_executor import execute_experiment_in_docker
+
+    with patch(
+        "services.docker_sandbox.run_in_sandbox",
+        return_value={
+            "status": "timeout",
+           "stdout": "",
+            "stderr": "Experiment exceeded its time limit.",
+        },
+    ):
+        result = execute_experiment_in_docker(
+            experiment_name="descriptive_statistics",
+            values=[10, 20, 30],
+        )
+
+    assert result["status"] == "timeout"
+    assert "time limit" in result["error"]
