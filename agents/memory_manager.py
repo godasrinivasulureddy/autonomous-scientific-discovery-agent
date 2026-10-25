@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from typing import Any, Callable
 
@@ -58,10 +59,13 @@ class AgentMemoryManager:
         lines = [line.strip() for line in text_to_compress.splitlines() if line.strip()]
         if not lines:
             return ""
-        # Keep key lines (e.g. status, hypotheses, findings)
+        # Keep key lines (e.g. status, hypotheses, findings, criticisms)
         key_lines = [
             line for line in lines
-            if any(term in line.lower() for term in ["hypothesis", "finding", "result", "evidence", "review", "p_value", "mean"])
+            if any(term in line.lower() for term in [
+                "hypothesis", "finding", "result", "evidence", "review",
+                "p_value", "mean", "critic", "statistical", "confidence_interval"
+            ])
         ]
         if not key_lines:
             key_lines = lines[:5]
@@ -128,16 +132,63 @@ class AgentMemoryManager:
             logger.warning("Summarizer failed during memory compression: %s", exc)
             self.running_summary = self._default_summarizer(full_compress_text)
 
-    def get_context(self, include_metadata: bool = False) -> str:
-        """Format the full context (summary + active turns) for prompt injection."""
+    def retrieve_relevant_history(self, query: str, top_k: int = 3) -> list[dict[str, Any]]:
+        """Retrieve most relevant historical interactions matching keywords in query.
+
+        Args:
+            query: The search topic or keyword string.
+            top_k: Number of relevant entries to return.
+
+        Returns:
+            List of matching interaction entries ordered by relevance score.
+        """
+        if not query or not isinstance(query, str):
+            return []
+
+        # Tokenize query words
+        query_terms = set(re.findall(r"\w+", query.lower()))
+        if not query_terms:
+            return []
+
+        scored_entries: list[tuple[float, dict[str, Any]]] = []
+        for entry in self.history:
+            content_lower = entry["content"].lower()
+            role_lower = entry["role"].lower()
+            # Score matches
+            term_matches = sum(1 for term in query_terms if term in content_lower or term in role_lower)
+            if term_matches > 0:
+                score = term_matches / len(query_terms)
+                scored_entries.append((score, entry))
+
+        # Sort descending by score
+        scored_entries.sort(key=lambda x: x[0], reverse=True)
+        return [entry for _, entry in scored_entries[:top_k]]
+
+    def get_context(
+        self,
+        include_metadata: bool = False,
+        relevant_query: str | None = None,
+    ) -> str:
+        """Format the full context (summary + active turns) for prompt injection.
+
+        Args:
+            include_metadata: Whether to append JSON metadata to each entry line.
+            relevant_query: Optional query to filter for most relevant history items.
+        """
         sections: list[str] = []
 
         if self.running_summary:
             sections.append(f"### EXECUTIVE RESEARCH SUMMARY\n{self.running_summary}")
 
-        if self.history:
+        entries_to_show = (
+            self.retrieve_relevant_history(relevant_query)
+            if relevant_query
+            else self.history
+        )
+
+        if entries_to_show:
             history_lines = ["### RECENT RESEARCH INTERACTIONS"]
-            for entry in self.history:
+            for entry in entries_to_show:
                 line = f"**{entry['role'].upper()}**: {entry['content']}"
                 if include_metadata and entry["metadata"]:
                     meta_str = json.dumps(entry["metadata"], separators=(",", ":"))
