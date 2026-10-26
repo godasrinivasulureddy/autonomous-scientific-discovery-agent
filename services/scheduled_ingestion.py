@@ -1,5 +1,5 @@
-
 import os
+import sys
 
 from services.paper_fetcher import search_all
 from services.vector_store import paper_exists, store_paper
@@ -26,9 +26,12 @@ def main():
     )
 
     if not papers:
-        raise RuntimeError(
-            "No eligible papers were returned from ArXiv or PubMed."
+        print(
+            f"[notice] No eligible peer-reviewed papers returned for '{topic}'. "
+            "Skipping ingestion for this scheduled run."
         )
+        print("SUMMARY: stored=0, skipped=0, failed=0")
+        return
 
     stored = 0
     skipped = 0
@@ -90,7 +93,7 @@ def main():
         )
 
     if stored == 0 and skipped == 0:
-        raise RuntimeError("No valid papers were processed.")
+        print("[notice] No new papers stored or skipped during this cycle.")
 
 
 if __name__ == "__main__":

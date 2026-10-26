@@ -149,3 +149,22 @@ def test_skips_missing_abstract(capsys):
     output = capsys.readouterr().out
     assert "no abstract" in output
     assert "stored=0, skipped=1, failed=0" in output
+
+
+def test_empty_search_results_handled_gracefully(capsys):
+    with (
+        patch(
+            "services.scheduled_ingestion.search_all",
+            return_value=[],
+        ),
+        patch("services.scheduled_ingestion.paper_exists") as exists,
+        patch("services.scheduled_ingestion.store_paper") as store,
+    ):
+        main()
+
+    exists.assert_not_called()
+    store.assert_not_called()
+
+    output = capsys.readouterr().out
+    assert "No eligible peer-reviewed papers returned" in output
+    assert "stored=0, skipped=0, failed=0" in output

@@ -169,12 +169,16 @@ def search_pubmed(topic, max_results=10, peer_reviewed_only=False):
     if not isinstance(peer_reviewed_only, bool):
         raise ValueError("peer_reviewed_only must be a boolean.")
 
+    # Over-fetch candidate IDs when filtering for peer-reviewed papers
+    # because latest records frequently contain reviews, editorials, and non-research items.
+    query_retmax = max(max_results * 5, 20) if peer_reviewed_only else max_results
+
     response = requests.get(
         f"{EUTILS}/esearch.fcgi",
         params={
             "db": "pubmed",
             "term": topic.strip(),
-            "retmax": max_results,
+            "retmax": query_retmax,
             "retmode": "json",
             "sort": "date",
         },
@@ -274,6 +278,9 @@ def search_pubmed(topic, max_results=10, peer_reviewed_only=False):
                 ),
             )
         )
+
+        if len(papers) >= max_results:
+            break
 
     return papers
 
