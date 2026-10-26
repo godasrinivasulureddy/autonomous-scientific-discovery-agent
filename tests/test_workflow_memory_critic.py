@@ -53,6 +53,21 @@ def test_workflow_with_statistical_critic_disabled():
     assert result["statistical_critic_result"]["status"] == "skipped"
 
 
+def test_workflow_safe_failure_on_unapproved_experiment():
+    """Verify that unapproved experiment inputs raise a clear ValueError as enforced by safety policy."""
+    with (
+        patch("agents.langchain_workflow.review_literature", return_value="Literature text"),
+        patch("agents.langchain_workflow.generate_hypothesis", return_value="Hypothesis text"),
+    ):
+        with pytest.raises(ValueError, match="At least two values are required"):
+            run_langchain_research(
+                topic="Neuroscience",
+                paper_text="Neuroscience paper text",
+                experiment_values=[1.0],  # Invalid sample size < 2
+                enable_statistical_critic=True,
+            )
+
+
 def test_relevant_history_retrieval_in_memory():
     memory = AgentMemoryManager()
     memory.add_interaction("literature_reviewer", "Focusing on CRISPR gene editing and Cas9 accuracy.")
