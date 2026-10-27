@@ -398,3 +398,40 @@ def test_rag_rejects_retrieved_paper_without_usable_text():
                 {"title": "Paper without text", "text": None}
             ],
         )
+
+
+def test_rag_research_with_memory_and_statistical_critic():
+    """Verify Day 5 integration: run_rag_research wires memory and statistical critic through."""
+    from agents.memory_manager import AgentMemoryManager
+
+    memory = AgentMemoryManager()
+    paper = sample_paper()
+
+    def mock_workflow(research_topic, paper_text, experiment_values=None, memory_manager=None, enable_statistical_critic=True):
+        if memory_manager:
+            memory_manager.add_interaction("literature_reviewer", "Review with RAG evidence")
+            memory_manager.add_interaction("hypothesis_generator", "Hypothesis from evidence")
+        return {
+            "research_topic": research_topic,
+            "literature_review": "Review with RAG evidence",
+            "hypothesis": "Hypothesis from evidence",
+            "experiment": {"status": "success", "mean": 12.0},
+            "statistical_critic_result": {"status": "evaluated", "significant": True},
+            "memory_context": memory_manager.get_context() if memory_manager else "",
+        }
+
+    with patch("agents.rag_orchestrator.run_research_workflow", side_effect=mock_workflow):
+        result = run_rag_research(
+            research_topic="Diabetes prediction",
+            search_papers=lambda *args, **kwargs: [paper],
+            experiment_values=[10.0, 12.0, 14.0],
+            memory_manager=memory,
+            enable_statistical_critic=True,
+        )
+
+    assert result["retrieval_count"] == 1
+    assert "statistical_critic_result" in result
+    assert result["statistical_critic_result"]["significant"] is True
+    assert "memory_context" in result
+    assert len(memory.history) == 2
+

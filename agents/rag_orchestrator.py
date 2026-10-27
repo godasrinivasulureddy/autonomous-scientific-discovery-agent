@@ -2,6 +2,7 @@
 """Connect retrieved research context to the existing LangChain workflow."""
 
 from agents.orchestrator import run_research_workflow
+from agents.memory_manager import AgentMemoryManager
 from services.vector_store import search_papers as pinecone_search_papers
 
 
@@ -10,6 +11,9 @@ def run_rag_research(
     search_papers,
     top_k: int = 3,
     peer_reviewed_only: bool = False,
+    experiment_values: list[float] | None = None,
+    memory_manager: AgentMemoryManager | None = None,
+    enable_statistical_critic: bool = True,
 ) -> dict:
     """Run research using relevant paper chunks from a vector database."""
 
@@ -95,6 +99,9 @@ def run_rag_research(
     result = run_research_workflow(
         research_topic=research_topic.strip(),
         paper_text="\n\n".join(context_parts),
+        experiment_values=experiment_values,
+        memory_manager=memory_manager,
+        enable_statistical_critic=enable_statistical_critic,
     )
 
     if not isinstance(result, dict):
@@ -111,6 +118,9 @@ def run_pinecone_rag_research(
     research_topic: str,
     top_k: int = 3,
     peer_reviewed_only: bool = False,
+    experiment_values: list[float] | None = None,
+    memory_manager: AgentMemoryManager | None = None,
+    enable_statistical_critic: bool = True,
 ) -> dict:
     """Run research using papers retrieved from Pinecone."""
 
@@ -119,4 +129,7 @@ def run_pinecone_rag_research(
         search_papers=pinecone_search_papers,
         top_k=top_k,
         peer_reviewed_only=peer_reviewed_only,
+        experiment_values=experiment_values,
+        memory_manager=memory_manager,
+        enable_statistical_critic=enable_statistical_critic,
     )
