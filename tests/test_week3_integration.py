@@ -169,3 +169,62 @@ def test_e2e_direct_statistical_critic_evaluation():
     assert len(critic_output["confidence_interval"]) == 2
     assert "criticism" in critic_output
     assert "recommendations" in critic_output
+
+
+def _generate_test_pdf():
+    import fitz
+    from PIL import Image
+    import io
+
+    img = Image.new("RGB", (250, 200), color=(60, 90, 120))
+    img_byte_arr = io.BytesIO()
+    img.save(img_byte_arr, format="PNG")
+    img_bytes = img_byte_arr.getvalue()
+
+    doc = fitz.open()
+    page = doc.new_page(width=612, height=792)
+    rect = fitz.Rect(50, 50, 300, 250)
+    page.insert_image(rect, stream=img_bytes)
+    pdf_bytes = doc.write()
+    doc.close()
+    return pdf_bytes
+
+
+def test_e2e_multimodal_research_pipeline_integration():
+    """Verify run_multimodal_research_pipeline extracts figures and runs multi-agent flow."""
+    from agents.orchestrator import run_multimodal_research_pipeline
+
+    sample_pdf = _generate_test_pdf()
+    memory = AgentMemoryManager()
+
+    with (
+        patch(
+            "agents.langchain_workflow.review_literature",
+            return_value="Reviewing gel electrophoresis and PCR band intensities.",
+        ),
+        patch(
+            "agents.langchain_workflow.generate_hypothesis",
+            return_value="Amplicon intensity correlates with template concentration.",
+        ),
+    ):
+        result = run_multimodal_research_pipeline(
+            research_topic="PCR Quantification",
+            pdf_bytes=sample_pdf,
+            paper_id="biorxiv:2026.04.12",
+            paper_title="Quantitative Electrophoresis Analysis",
+            experiment_values=[12.0, 15.0, 14.5, 16.2, 13.8],
+            memory_manager=memory,
+            enable_statistical_critic=True,
+            max_figures=2,
+        )
+
+    assert result["research_topic"] == "PCR Quantification"
+    assert result["multimodal_figures_count"] >= 1
+    assert len(result["visual_analyses"]) >= 1
+    assert result["experiment"]["status"] == "success"
+    assert result["statistical_critic_result"]["status"] == "evaluated"
+
+    # Memory logged Gemini Vision figure analysis
+    roles = [entry["role"] for entry in memory.history]
+    assert "gemini_vision" in roles
+

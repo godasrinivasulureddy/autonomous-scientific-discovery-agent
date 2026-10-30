@@ -442,3 +442,78 @@ def run_full_research_pipeline(
     )
 
     return research
+
+
+def run_multimodal_research_pipeline(
+    research_topic: str,
+    pdf_bytes: bytes | None = None,
+    paper_id: str = "custom_paper",
+    paper_title: str = "",
+    experiment_values: list[float] | None = None,
+    memory_manager: AgentMemoryManager | None = None,
+    enable_statistical_critic: bool = True,
+    max_figures: int = 5,
+) -> dict:
+    """Run research workflow enhanced with multimodal chart/figure analysis."""
+    from services.multimodal_vision import extract_figures_from_pdf, analyze_scientific_figure
+
+    _validate_research_topic(research_topic)
+
+    figures_extracted = []
+    visual_analyses = []
+
+    if pdf_bytes is not None and len(pdf_bytes) > 0:
+        figures_extracted = extract_figures_from_pdf(
+            pdf_bytes=pdf_bytes,
+            paper_id=paper_id,
+            max_figures=max_figures,
+        )
+
+        for fig in figures_extracted:
+            analysis = analyze_scientific_figure(
+                image_bytes=fig["image_bytes"],
+                figure_label=fig["reference_label"],
+                paper_title=paper_title or research_topic,
+                research_topic=research_topic,
+            )
+            visual_analyses.append({
+                "figure_id": fig["figure_id"],
+                "reference_label": fig["reference_label"],
+                "figure_type": analysis.get("figure_type", "Scientific Figure"),
+                "analysis": analysis.get("analysis", ""),
+            })
+
+    # Prepare multimodal context text
+    context_blocks = [f"RESEARCH TOPIC: {research_topic}"]
+    if paper_title:
+        context_blocks.append(f"PAPER TITLE: {paper_title}")
+
+    if visual_analyses:
+        context_blocks.append("EXTRACTED MULTIMODAL EVIDENCE:")
+        for va in visual_analyses:
+            context_blocks.append(f"[{va['reference_label']}] ({va['figure_type']}):\n{va['analysis']}")
+    else:
+        context_blocks.append("Literature content and empirical experimental observations.")
+
+    multimodal_paper_text = "\n\n".join(context_blocks)
+
+    result = run_research_workflow(
+        research_topic=research_topic,
+        paper_text=multimodal_paper_text,
+        experiment_values=experiment_values,
+        memory_manager=memory_manager,
+        enable_statistical_critic=enable_statistical_critic,
+    )
+
+    result["multimodal_figures_count"] = len(figures_extracted)
+    result["visual_analyses"] = visual_analyses
+
+    if memory_manager and visual_analyses:
+        for va in visual_analyses:
+            memory_manager.add_interaction(
+                role="gemini_vision",
+                content=f"Visual findings for {va['reference_label']}: {va['analysis'][:200]}...",
+                metadata={"figure_id": va["figure_id"], "figure_type": va["figure_type"]},
+            )
+
+    return result
