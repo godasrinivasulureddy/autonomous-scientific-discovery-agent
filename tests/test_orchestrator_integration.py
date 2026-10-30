@@ -237,3 +237,77 @@ def test_papers_without_usable_text_are_skipped():
             research_topic="Machine Learning",
             max_results=1,
         )
+
+
+def test_research_workflow_with_memory_and_statistical_critic():
+    """Verify Day 5 integration: run_research_workflow passes memory and evaluates critic."""
+    from agents.memory_manager import AgentMemoryManager
+
+    memory = AgentMemoryManager(max_entries=10)
+
+    with (
+        patch(
+            "agents.langchain_workflow.review_literature",
+            return_value="CRISPR gene editing mechanisms and accuracy.",
+        ),
+        patch(
+            "agents.langchain_workflow.generate_hypothesis",
+            return_value="Targeted base editor decreases indel formation.",
+        ),
+    ):
+        result = run_research_workflow(
+            research_topic="Gene Editing",
+            paper_text="Base editor experimental results across cell lines.",
+            experiment_values=[15.0, 18.0, 20.0, 22.0],
+            memory_manager=memory,
+            enable_statistical_critic=True,
+        )
+
+    assert result["research_topic"] == "Gene Editing"
+    assert result["literature_review"] == "CRISPR gene editing mechanisms and accuracy."
+    assert result["hypothesis"] == "Targeted base editor decreases indel formation."
+    assert result["experiment"]["status"] == "success"
+
+    # Statistical Critic Verification
+    assert "statistical_critic_result" in result
+    assert result["statistical_critic_result"]["status"] == "evaluated"
+    assert result["statistical_critic_result"]["significant"] is True
+    assert "confidence_interval" in result["statistical_critic_result"]
+
+    # Memory Manager Context Verification
+    assert "memory_context" in result
+    assert "LITERATURE_REVIEWER" in result["memory_context"]
+    assert "STATISTICAL_CRITIC" in result["memory_context"]
+    assert len(memory.history) >= 3
+
+
+def test_experiment_with_feedback_includes_statistical_critic():
+    """Verify Day 5 integration: run_experiment_with_feedback executes and evaluates with critic."""
+    from agents.orchestrator import run_experiment_with_feedback
+    from agents.memory_manager import AgentMemoryManager
+
+    memory = AgentMemoryManager()
+    values = [10.5, 11.2, 12.0, 11.8, 10.9]
+
+    result = run_experiment_with_feedback(
+        values=values,
+        use_docker=False,
+        memory_manager=memory,
+    )
+
+    assert "experiment" in result
+    assert result["experiment"]["status"] == "success"
+    assert result["experiment"]["metadata"]["docker_sandboxed"] is False
+
+    assert "feedback" in result
+    assert "reward" in result["feedback"]
+
+    assert "statistical_critic" in result
+    assert result["statistical_critic"]["status"] == "evaluated"
+    assert "confidence_interval" in result["statistical_critic"]
+    assert "criticism" in result["statistical_critic"]
+
+    # Memory check
+    assert len(memory.history) == 2
+    assert memory.history[0]["role"] == "code_executor"
+    assert memory.history[1]["role"] == "statistical_critic"

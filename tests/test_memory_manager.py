@@ -1,4 +1,4 @@
-"""Unit tests for AgentMemoryManager context-window and memory retention."""
+"""Unit tests for AgentMemoryManager context-window, memory retention, and retrieval."""
 
 import pytest
 from agents.memory_manager import AgentMemoryManager
@@ -71,6 +71,38 @@ def test_memory_compression_on_token_limit():
     assert memory.estimate_total_tokens() > 0
     context = memory.get_context()
     assert len(context) > 0
+
+
+def test_memory_window_sliding_and_token_budget_preservation():
+    """Verify that memory respects strict token budgets and produces compressed summaries without loss of key research findings."""
+    memory = AgentMemoryManager(max_tokens=60, max_entries=4)
+
+    memory.add_interaction("literature_reviewer", "Review: Discovered CRISPR-Cas9 variance in 10 clinical trials.")
+    memory.add_interaction("hypothesis_generator", "Hypothesis: Cas9 modifications reduce off-target edits.")
+    memory.add_interaction("code_executor", "Result: Descriptive statistics mean=14.2, std=1.8.")
+    memory.add_interaction("statistical_critic", "Criticism: 95% CI is [12.8, 15.6], significance verified.")
+    memory.add_interaction("agent", "Iteration 5: Next stage planned.")
+
+    assert len(memory.history) <= 4
+    assert memory.running_summary != ""
+
+    context = memory.get_context()
+    assert "EXECUTIVE RESEARCH SUMMARY" in context
+    assert len(context) > 0
+
+
+def test_memory_retrieval_handles_empty_and_special_character_queries():
+    """Verify that memory retrieval is robust against edge-case queries."""
+    memory = AgentMemoryManager()
+    memory.add_interaction("literature_reviewer", "Protein folding dynamics under thermal stress.")
+
+    assert memory.retrieve_relevant_history("") == []
+    assert memory.retrieve_relevant_history("   ") == []
+    assert memory.retrieve_relevant_history("!@#$%^&*()") == []
+
+    matches = memory.retrieve_relevant_history("protein thermal dynamics")
+    assert len(matches) == 1
+    assert "Protein folding" in matches[0]["content"]
 
 
 def test_clear_memory():

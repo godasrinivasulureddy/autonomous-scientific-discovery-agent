@@ -1,6 +1,9 @@
 
+from typing import Any
 from agents.code_executor import execute_experiment
 from agents.langchain_workflow import run_langchain_research
+from agents.memory_manager import AgentMemoryManager
+from agents.statistical_critic import evaluate_experiment_results
 
 
 def _validate_research_topic(research_topic: str) -> None:
@@ -26,8 +29,14 @@ def _validate_top_k(top_k: int) -> None:
         raise ValueError("top_k must be a positive integer.")
 
 
-def run_research_workflow(research_topic: str, paper_text: str) -> dict:
-    """Coordinate scientific research agents using LangChain."""
+def run_research_workflow(
+    research_topic: str,
+    paper_text: str,
+    experiment_values: list[float] | None = None,
+    memory_manager: AgentMemoryManager | None = None,
+    enable_statistical_critic: bool = True,
+) -> dict:
+    """Coordinate scientific research agents using LangChain with memory and critic."""
     _validate_research_topic(research_topic)
 
     if not isinstance(paper_text, str) or not paper_text.strip():
@@ -36,17 +45,32 @@ def run_research_workflow(research_topic: str, paper_text: str) -> dict:
     research_result = run_langchain_research(
         topic=research_topic.strip(),
         paper_text=paper_text,
+        experiment_values=experiment_values,
+        memory_manager=memory_manager,
+        enable_statistical_critic=enable_statistical_critic,
     )
 
-    return {
+    result: dict[str, Any] = {
         "research_topic": research_topic.strip(),
         "literature_review": research_result["literature_review"],
         "hypothesis": research_result["hypothesis"],
-        "experiment": {
+    }
+
+    if experiment_values is not None:
+        result["experiment"] = research_result.get("experiment_result", {})
+    else:
+        result["experiment"] = {
             "status": "not_executed",
             "reason": "An approved experiment and dataset are required.",
-        },
-    }
+        }
+
+    if "statistical_critic_result" in research_result:
+        result["statistical_critic_result"] = research_result["statistical_critic_result"]
+
+    if "memory_context" in research_result:
+        result["memory_context"] = research_result["memory_context"]
+
+    return result
 
 
 def run_approved_experiment(values: list[float]) -> dict:
@@ -263,21 +287,59 @@ def ingest_research_papers(
     }
 
 
-def run_experiment_with_feedback(values: list[float]) -> dict:
-    """Run approved statistics in Docker and evaluate the result."""
-    from agents.code_executor import execute_experiment_in_docker
+def run_experiment_with_feedback(
+    values: list[float],
+    use_docker: bool = True,
+    memory_manager: AgentMemoryManager | None = None,
+) -> dict:
+    """Run approved statistics and evaluate with both feedback agent and statistical critic."""
+    from agents.code_executor import execute_experiment, execute_experiment_in_docker
     from agents.feedback_agent import evaluate_experiment
 
-    experiment_result = execute_experiment_in_docker(
-        experiment_name="descriptive_statistics",
-        values=values,
-    )
+    if use_docker:
+        experiment_result = execute_experiment_in_docker(
+            experiment_name="descriptive_statistics",
+            values=values,
+            include_metadata=True,
+        )
+    else:
+        experiment_result = execute_experiment(
+            experiment_name="descriptive_statistics",
+            values=values,
+            include_metadata=True,
+        )
 
     feedback = evaluate_experiment(experiment_result)
+
+    # Day 5 integration: Statistical Critic evaluation
+    try:
+        statistical_critic_result = evaluate_experiment_results(
+            hypothesis="Empirical measurement of distribution parameters",
+            experiment_result=experiment_result,
+        )
+    except Exception as exc:
+        statistical_critic_result = {
+            "status": "error",
+            "error": str(exc),
+        }
+
+    # Record into memory if provided
+    if memory_manager:
+        memory_manager.add_interaction(
+            role="code_executor",
+            content=f"Executed experiment with {len(values)} values. Result status: {experiment_result.get('status')}",
+            metadata={"experiment": "descriptive_statistics", "use_docker": use_docker},
+        )
+        memory_manager.add_interaction(
+            role="statistical_critic",
+            content=statistical_critic_result.get("criticism", str(statistical_critic_result)),
+            metadata={"status": statistical_critic_result.get("status")},
+        )
 
     return {
         "experiment": experiment_result,
         "feedback": feedback,
+        "statistical_critic": statistical_critic_result,
     }
 
 
@@ -380,3 +442,78 @@ def run_full_research_pipeline(
     )
 
     return research
+
+
+def run_multimodal_research_pipeline(
+    research_topic: str,
+    pdf_bytes: bytes | None = None,
+    paper_id: str = "custom_paper",
+    paper_title: str = "",
+    experiment_values: list[float] | None = None,
+    memory_manager: AgentMemoryManager | None = None,
+    enable_statistical_critic: bool = True,
+    max_figures: int = 5,
+) -> dict:
+    """Run research workflow enhanced with multimodal chart/figure analysis."""
+    from services.multimodal_vision import extract_figures_from_pdf, analyze_scientific_figure
+
+    _validate_research_topic(research_topic)
+
+    figures_extracted = []
+    visual_analyses = []
+
+    if pdf_bytes is not None and len(pdf_bytes) > 0:
+        figures_extracted = extract_figures_from_pdf(
+            pdf_bytes=pdf_bytes,
+            paper_id=paper_id,
+            max_figures=max_figures,
+        )
+
+        for fig in figures_extracted:
+            analysis = analyze_scientific_figure(
+                image_bytes=fig["image_bytes"],
+                figure_label=fig["reference_label"],
+                paper_title=paper_title or research_topic,
+                research_topic=research_topic,
+            )
+            visual_analyses.append({
+                "figure_id": fig["figure_id"],
+                "reference_label": fig["reference_label"],
+                "figure_type": analysis.get("figure_type", "Scientific Figure"),
+                "analysis": analysis.get("analysis", ""),
+            })
+
+    # Prepare multimodal context text
+    context_blocks = [f"RESEARCH TOPIC: {research_topic}"]
+    if paper_title:
+        context_blocks.append(f"PAPER TITLE: {paper_title}")
+
+    if visual_analyses:
+        context_blocks.append("EXTRACTED MULTIMODAL EVIDENCE:")
+        for va in visual_analyses:
+            context_blocks.append(f"[{va['reference_label']}] ({va['figure_type']}):\n{va['analysis']}")
+    else:
+        context_blocks.append("Literature content and empirical experimental observations.")
+
+    multimodal_paper_text = "\n\n".join(context_blocks)
+
+    result = run_research_workflow(
+        research_topic=research_topic,
+        paper_text=multimodal_paper_text,
+        experiment_values=experiment_values,
+        memory_manager=memory_manager,
+        enable_statistical_critic=enable_statistical_critic,
+    )
+
+    result["multimodal_figures_count"] = len(figures_extracted)
+    result["visual_analyses"] = visual_analyses
+
+    if memory_manager and visual_analyses:
+        for va in visual_analyses:
+            memory_manager.add_interaction(
+                role="gemini_vision",
+                content=f"Visual findings for {va['reference_label']}: {va['analysis'][:200]}...",
+                metadata={"figure_id": va["figure_id"], "figure_type": va["figure_type"]},
+            )
+
+    return result
