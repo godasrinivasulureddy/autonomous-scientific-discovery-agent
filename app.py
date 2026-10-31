@@ -390,12 +390,29 @@ def render_results_section(result: Dict[str, Any]) -> None:
             st.markdown("##### 📊 Statistical Critic Evaluation")
             critic = result.get("statistical_critic_result", {})
             if critic:
-                is_sig = critic.get("is_statistically_significant")
+                is_sig = critic.get("significant") if "significant" in critic else critic.get("is_statistically_significant", False)
                 badge = "✅ Significant" if is_sig else "ℹ️ Not Statistically Significant"
                 st.markdown(f"**Outcome:** `{badge}`")
-                st.markdown(f"- **Method:** `{critic.get('test_performed', 'N/A')}`")
-                st.markdown(f"- **p-value:** `{critic.get('p_value', 'N/A')}` (alpha = {critic.get('alpha', 0.05)})")
-                st.markdown(f"- **Summary:** {critic.get('explanation', 'N/A')}")
+                
+                test_name = critic.get("test_name") or critic.get("test_performed") or "Confidence Interval Analysis"
+                st.markdown(f"- **Method:** `{test_name}`")
+                
+                ci = critic.get("confidence_interval")
+                if ci:
+                    st.markdown(f"- **95% Confidence Interval:** `[{ci[0]}, {ci[1]}]`")
+                
+                p_val = critic.get("p_value")
+                if p_val is not None:
+                    st.markdown(f"- **p-value:** `{p_val}` (alpha = {critic.get('alpha', 0.05)})")
+                
+                explanation = critic.get("criticism") or critic.get("explanation") or "N/A"
+                st.markdown(f"- **Evaluation:** {explanation}")
+                
+                recs = critic.get("recommendations", [])
+                if recs:
+                    st.markdown("**Recommendations:**")
+                    for r in recs:
+                        st.markdown(f"  - {r}")
             else:
                 st.caption("Statistical critic was not invoked or experimental values were omitted.")
 
