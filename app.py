@@ -8,7 +8,11 @@ import os
 import sys
 import time
 from typing import Any, Dict, List, Optional
+from dotenv import load_dotenv
 import streamlit as st
+
+# Load environment variables from .env file automatically
+load_dotenv()
 
 # Ensure repository root is on PYTHONPATH
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
