@@ -43,7 +43,7 @@ def inject_custom_css() -> None:
         """
         <style>
         .main-header {
-            font-size: 2.1rem;
+            font-size: 2.2rem;
             font-weight: 700;
             color: #1E3A8A;
             margin-bottom: 0.2rem;
@@ -61,16 +61,32 @@ def inject_custom_css() -> None:
         }
         .agent-pill {
             display: inline-block;
-            padding: 4px 10px;
-            border-radius: 12px;
-            font-size: 0.85rem;
+            padding: 6px 12px;
+            border-radius: 14px;
+            font-size: 0.88rem;
             font-weight: 600;
             margin-right: 6px;
             margin-bottom: 6px;
         }
-        .pill-done { background-color: #DCFCE7; color: #166534; }
-        .pill-pending { background-color: #F1F5F9; color: #64748B; }
-        .pill-running { background-color: #FEF3C7; color: #92400E; }
+        .pill-done { background-color: #DCFCE7; color: #166534; border: 1px solid #BBF7D0; }
+        .pill-pending { background-color: #F1F5F9; color: #64748B; border: 1px solid #E2E8F0; }
+        .pill-running { background-color: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; }
+        .pill-error { background-color: #FEE2E2; color: #991B1B; border: 1px solid #FECACA; }
+        
+        .citation-card {
+            background-color: #F8FAFC;
+            border-left: 4px solid #3B82F6;
+            padding: 12px 16px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .summary-card {
+            background-color: #EFF6FF;
+            border: 1px solid #BFDBFE;
+            padding: 14px 18px;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -152,7 +168,7 @@ def render_topic_input_section() -> Dict[str, Any]:
         "mRNA vaccine lipid nanoparticle stability under varying pH",
     ]
 
-    col_preset, col_btn = st.columns([4, 1])
+    col_preset, _ = st.columns([4, 1])
     with col_preset:
         selected_preset = st.selectbox("Sample Research Presets", preset_topics, index=1)
 
@@ -172,7 +188,7 @@ def render_topic_input_section() -> Dict[str, Any]:
         manual_context = st.text_area(
             "Direct Literature Evidence / Abstract (Optional if using live RAG):",
             value="CRISPR-Cas9 gene editing demonstrates high on-target cleavage efficiency, but off-target activity remains a safety challenge. High-fidelity Cas9 variants engineered with attenuated non-specific DNA interactions reduce non-target cleavage by up to 20-fold while preserving high target locus cleavage efficiency across mammalian cellular models.",
-            height=100,
+            height=110,
         )
 
     with col2:
@@ -207,7 +223,7 @@ def execute_pipeline(
     config: Dict[str, Any],
     inputs: Dict[str, Any],
 ) -> Optional[Dict[str, Any]]:
-    """Execute the multi-agent discovery workflow based on user configuration."""
+    """Execute the multi-agent discovery workflow with live status monitoring."""
     topic = inputs["research_topic"].strip()
     if not topic:
         st.error("Please enter a research topic before starting discovery.")
@@ -221,47 +237,64 @@ def execute_pipeline(
 
     with status_col1:
         lit_status = st.empty()
-        lit_status.markdown('<span class="agent-pill pill-running">📚 1. Lit Reviewer</span>', unsafe_allow_html=True)
+        lit_status.markdown('<span class="agent-pill pill-running">📚 1. Lit Reviewer ⏳</span>', unsafe_allow_html=True)
     with status_col2:
         hypo_status = st.empty()
-        hypo_status.markdown('<span class="agent-pill pill-pending">💡 2. Hypothesis</span>', unsafe_allow_html=True)
+        hypo_status.markdown('<span class="agent-pill pill-pending">💡 2. Hypothesis ⏸️</span>', unsafe_allow_html=True)
     with status_col3:
         vision_status = st.empty()
-        vision_status.markdown('<span class="agent-pill pill-pending">👁️ 3. Vision Critic</span>', unsafe_allow_html=True)
+        vision_status.markdown('<span class="agent-pill pill-pending">👁️ 3. Vision Critic ⏸️</span>', unsafe_allow_html=True)
     with status_col4:
         exec_status = st.empty()
-        exec_status.markdown('<span class="agent-pill pill-pending">⚡ 4. Code Executor</span>', unsafe_allow_html=True)
+        exec_status.markdown('<span class="agent-pill pill-pending">⚡ 4. Code Executor ⏸️</span>', unsafe_allow_html=True)
     with status_col5:
         critic_status = st.empty()
-        critic_status.markdown('<span class="agent-pill pill-pending">📊 5. Stat Critic</span>', unsafe_allow_html=True)
+        critic_status.markdown('<span class="agent-pill pill-pending">📊 5. Stat Critic ⏸️</span>', unsafe_allow_html=True)
 
     start_time = time.time()
     result: Dict[str, Any] = {}
+    agent_stages: Dict[str, str] = {
+        "literature_reviewer": "pending",
+        "hypothesis_generator": "pending",
+        "vision_critic": "skipped",
+        "code_executor": "pending",
+        "statistical_critic": "pending",
+    }
 
     try:
-        progress_bar.progress(15, text="Querying Literature & Grounding Evidence...")
-
+        progress_bar.progress(15, text="Querying Scientific Literature & Evidence Grounding...")
         mode = config["workflow_mode"]
         pdf_file = inputs["pdf_file"]
 
-        if mode == "Multimodal PDF Analysis (Gemini Vision)" and pdf_file is not None:
-            pdf_bytes = pdf_file.read()
-            progress_bar.progress(35, text="Extracting Charts and Figures with PyMuPDF...")
-            vision_status.markdown('<span class="agent-pill pill-running">👁️ 3. Vision Critic</span>', unsafe_allow_html=True)
+        if mode == "Multimodal PDF Analysis (Gemini Vision)":
+            if pdf_file is None:
+                st.warning("⚠️ No PDF uploaded for Multimodal mode. Defaulting to provided literature text.")
+                result = run_research_workflow(
+                    research_topic=topic,
+                    paper_text=inputs["manual_context"] or topic,
+                    experiment_values=inputs["experiment_values"],
+                    memory_manager=memory_manager,
+                    enable_statistical_critic=config["enable_statistical_critic"],
+                )
+            else:
+                pdf_bytes = pdf_file.read()
+                progress_bar.progress(35, text="PyMuPDF Extracting Embedded Figures & Plots...")
+                vision_status.markdown('<span class="agent-pill pill-running">👁️ 3. Vision Critic ⏳</span>', unsafe_allow_html=True)
 
-            result = run_multimodal_research_pipeline(
-                research_topic=topic,
-                pdf_bytes=pdf_bytes,
-                paper_id=pdf_file.name,
-                paper_title=topic,
-                experiment_values=inputs["experiment_values"],
-                memory_manager=memory_manager,
-                enable_statistical_critic=config["enable_statistical_critic"],
-            )
-            vision_status.markdown('<span class="agent-pill pill-done">👁️ 3. Vision Critic ✅</span>', unsafe_allow_html=True)
+                result = run_multimodal_research_pipeline(
+                    research_topic=topic,
+                    pdf_bytes=pdf_bytes,
+                    paper_id=pdf_file.name,
+                    paper_title=topic,
+                    experiment_values=inputs["experiment_values"],
+                    memory_manager=memory_manager,
+                    enable_statistical_critic=config["enable_statistical_critic"],
+                )
+                vision_status.markdown('<span class="agent-pill pill-done">👁️ 3. Vision Critic ✅</span>', unsafe_allow_html=True)
+                agent_stages["vision_critic"] = "completed"
 
         elif mode == "RAG Semantic Retrieval (Pinecone)":
-            progress_bar.progress(30, text="Performing Pinecone Vector Search...")
+            progress_bar.progress(30, text="Performing Pinecone Vector Similarity Search...")
             try:
                 result = run_pinecone_rag_research(
                     research_topic=topic,
@@ -272,7 +305,6 @@ def execute_pipeline(
                     enable_statistical_critic=config["enable_statistical_critic"],
                 )
             except Exception as rag_err:
-                # If Pinecone lacks network or index in local test, fallback to manual context
                 st.info(f"Vector store search defaulted to literature context: {rag_err}")
                 result = run_research_workflow(
                     research_topic=topic,
@@ -283,7 +315,7 @@ def execute_pipeline(
                 )
 
         elif mode == "Live Literature Search (ArXiv/PubMed)":
-            progress_bar.progress(30, text="Fetching live papers from ArXiv & PubMed...")
+            progress_bar.progress(30, text="Fetching Live Papers from ArXiv & PubMed...")
             try:
                 result = run_research_from_papers(
                     research_topic=topic,
@@ -309,32 +341,122 @@ def execute_pipeline(
             )
 
         # Update pipeline indicators
-        progress_bar.progress(60, text="Generating Testable Hypotheses...")
+        progress_bar.progress(60, text="Agent 2 Generating Testable Hypotheses...")
         lit_status.markdown('<span class="agent-pill pill-done">📚 1. Lit Reviewer ✅</span>', unsafe_allow_html=True)
         hypo_status.markdown('<span class="agent-pill pill-done">💡 2. Hypothesis ✅</span>', unsafe_allow_html=True)
+        agent_stages["literature_reviewer"] = "completed"
+        agent_stages["hypothesis_generator"] = "completed"
 
-        progress_bar.progress(85, text="Running Verification Code & Statistical Critic...")
+        progress_bar.progress(85, text="Agent 3 & 4: Executing Code & Statistical Critic...")
         exec_status.markdown('<span class="agent-pill pill-done">⚡ 4. Code Executor ✅</span>', unsafe_allow_html=True)
         critic_status.markdown('<span class="agent-pill pill-done">📊 5. Stat Critic ✅</span>', unsafe_allow_html=True)
+        agent_stages["code_executor"] = "completed"
+        agent_stages["statistical_critic"] = "completed" if config["enable_statistical_critic"] else "skipped"
 
-        progress_bar.progress(100, text="Scientific Discovery Run Complete!")
+        progress_bar.progress(100, text="Scientific Discovery Pipeline Completed Successfully!")
 
         # Calculate metrics and cost
         latency_seconds = round(time.time() - start_time, 2)
         metrics = track_discovery_metrics(result, execution_duration=latency_seconds)
         result["metrics"] = metrics
+        result["agent_stages"] = agent_stages
+        result["workflow_mode"] = mode
 
         return result
 
     except Exception as e:
         progress_bar.empty()
-        st.error(f"Pipeline Execution Error: {str(e)}")
+        lit_status.markdown('<span class="agent-pill pill-error">📚 1. Lit Reviewer ❌</span>', unsafe_allow_html=True)
+        hypo_status.markdown('<span class="agent-pill pill-error">💡 2. Hypothesis ❌</span>', unsafe_allow_html=True)
+        exec_status.markdown('<span class="agent-pill pill-error">⚡ 4. Code Executor ❌</span>', unsafe_allow_html=True)
+        critic_status.markdown('<span class="agent-pill pill-error">📊 5. Stat Critic ❌</span>', unsafe_allow_html=True)
+        
+        st.error(f"❌ Discovery Pipeline Execution Error: {str(e)}")
+        with st.expander("Troubleshooting & Error Details", expanded=True):
+            st.markdown(
+                """
+                - **API Key Issue:** Ensure `GEMINI_API_KEY` and `PINECONE_API_KEY` are configured in your `.env` file.
+                - **Input Validation:** Ensure research topic is not empty and experimental values are valid numbers.
+                - **Network Connectivity:** Check internet connection for live ArXiv, PubMed, or Pinecone API calls.
+                """
+            )
         return None
+
+
+def extract_all_citations(result: Dict[str, Any]) -> List[Dict[str, str]]:
+    """Aggregate citations from citations metadata, retrieved_papers, and papers."""
+    citations = []
+
+    # 1. Check citation_metadata from RAG
+    if "citation_metadata" in result and result["citation_metadata"]:
+        for item in result["citation_metadata"]:
+            citations.append({
+                "title": item.get("title", "Untitled Paper"),
+                "source": item.get("source", "Pinecone Vector Store"),
+                "url": item.get("url", "#"),
+                "evidence_id": item.get("evidence_id", len(citations) + 1),
+            })
+
+    # 2. Check direct citations list
+    if "citations" in result and result["citations"]:
+        for item in result["citations"]:
+            if isinstance(item, dict):
+                citations.append({
+                    "title": item.get("title", "Untitled Reference"),
+                    "source": item.get("source", "Scientific Literature"),
+                    "url": item.get("url", "#"),
+                    "evidence_id": len(citations) + 1,
+                })
+
+    # 3. Check papers list from paper_fetcher
+    if "papers" in result and result["papers"]:
+        for item in result["papers"]:
+            if isinstance(item, dict):
+                citations.append({
+                    "title": item.get("title", "Untitled Paper"),
+                    "source": item.get("source", "ArXiv/PubMed Ingestion"),
+                    "url": item.get("url", item.get("pdf_url", "#")),
+                    "evidence_id": len(citations) + 1,
+                })
+
+    # Deduplicate by title
+    seen_titles = set()
+    unique_citations = []
+    for c in citations:
+        title_lower = c["title"].lower().strip()
+        if title_lower not in seen_titles:
+            seen_titles.add(title_lower)
+            unique_citations.append(c)
+
+    return unique_citations
+
+
+def render_workflow_summary_card(result: Dict[str, Any]) -> None:
+    """Render an overview banner summarizing the workflow run."""
+    topic = result.get("research_topic", "Unknown Topic")
+    mode = result.get("workflow_mode", "Standard Discovery")
+    metrics: Optional[ExecutionMetrics] = result.get("metrics")
+    latency = f"{metrics.execution_time_seconds}s" if metrics else "N/A"
+    tokens = f"{metrics.total_tokens:,}" if metrics else "N/A"
+    cost = f"${metrics.estimated_cost_usd:.5f}" if metrics else "N/A"
+    fig_count = result.get("multimodal_figures_count", 0)
+
+    st.markdown(
+        f"""
+        <div class="summary-card">
+            <h4 style="margin:0 0 8px 0; color:#1E40AF;">📌 Workflow Run Summary</h4>
+            <b>Topic:</b> {topic}<br>
+            <b>Mode:</b> {mode} | <b>Latency:</b> {latency} | <b>Tokens Used:</b> {tokens} | <b>Est. Cost:</b> {cost} | <b>Figures Analyzed:</b> {fig_count}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_results_section(result: Dict[str, Any]) -> None:
     """Render Section 2 to 5: Workflow status, agent outputs, and analytics."""
     st.divider()
+    render_workflow_summary_card(result)
     st.subheader("📋 Discovery Pipeline Outputs & Agent Evaluation")
 
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
@@ -350,11 +472,24 @@ def render_results_section(result: Dict[str, Any]) -> None:
         lit_text = result.get("literature_review", "No literature review generated.")
         st.write(lit_text)
 
-        citations = result.get("citations", [])
-        if citations:
-            st.markdown("##### 🔗 Retrieved Citations & References")
-            for cit in citations:
-                st.markdown(f"- **{cit.get('title', 'Unknown Title')}** ({cit.get('source', 'Unknown Source')}) — [Link]({cit.get('url', '#')})")
+        st.divider()
+        st.markdown("#### 🔗 Grounded Literature Citations & Source References")
+        all_citations = extract_all_citations(result)
+        if all_citations:
+            for cit in all_citations:
+                url = cit.get("url", "#")
+                link_html = f'<a href="{url}" target="_blank">View Paper ↗</a>' if url and url != "#" else "No link available"
+                st.markdown(
+                    f"""
+                    <div class="citation-card">
+                        <b>[{cit.get('evidence_id', '•')}] {cit.get('title', 'Unknown Title')}</b><br>
+                        <span style="color:#64748B; font-size:0.9rem;">Source: {cit.get('source', 'Scientific Database')} | {link_html}</span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+        else:
+            st.info("Direct context input was provided. No external bibliographic references to index.")
 
     with tab2:
         st.markdown("#### Agent 2: Generated Scientific Hypothesis")
@@ -383,6 +518,10 @@ def render_results_section(result: Dict[str, Any]) -> None:
             exp = result.get("experiment", {})
             if exp:
                 st.json(exp)
+                # Show execution metadata if available
+                metadata = exp.get("metadata", {})
+                if metadata:
+                    st.caption(f"Sandbox: Docker {'✅' if metadata.get('docker_sandboxed') else '⚠️ Local'} | Runtime: {metadata.get('execution_time_seconds', 0.0)}s")
             else:
                 st.caption("No empirical experiment executed.")
 
@@ -426,12 +565,14 @@ def render_results_section(result: Dict[str, Any]) -> None:
             m3.metric("Est. Gemini Cost", f"${metrics.estimated_cost_usd:.5f}")
             m4.metric("Figures Evaluated", f"{result.get('multimodal_figures_count', 0)}")
 
-            with st.expander("🔍 Detailed Token Breakdown", expanded=False):
+            with st.expander("🔍 Detailed Token & Cost Breakdown", expanded=False):
                 st.write({
                     "Prompt Tokens (est.)": metrics.prompt_tokens,
                     "Completion Tokens (est.)": metrics.completion_tokens,
                     "Total Tokens": metrics.total_tokens,
-                    "Pricing Basis": "Gemini Flash: $0.15/1M in, $0.60/1M out",
+                    "Execution Time (seconds)": metrics.execution_time_seconds,
+                    "Estimated Cost (USD)": f"${metrics.estimated_cost_usd:.6f}",
+                    "Pricing Basis": "Google Gemini Flash ($0.15/1M input, $0.60/1M output)",
                 })
         else:
             st.caption("Metrics unavailable for this execution.")
