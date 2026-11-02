@@ -134,6 +134,9 @@ def _process_papers(papers: list) -> list[dict]:
 def run_research_from_papers(
     research_topic: str,
     max_results: int = 3,
+    experiment_values: list[float] | None = None,
+    memory_manager: AgentMemoryManager | None = None,
+    enable_statistical_critic: bool = True,
 ) -> dict:
     """Fetch scientific papers and run the research agents."""
     _validate_research_topic(research_topic)
@@ -160,6 +163,9 @@ def run_research_from_papers(
     result = run_research_workflow(
         research_topic=research_topic.strip(),
         paper_text=paper_text,
+        experiment_values=experiment_values,
+        memory_manager=memory_manager,
+        enable_statistical_critic=enable_statistical_critic,
     )
 
     result["papers"] = [

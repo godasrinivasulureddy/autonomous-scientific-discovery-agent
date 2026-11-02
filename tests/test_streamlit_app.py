@@ -131,7 +131,7 @@ def test_execute_pipeline_direct_mode_success(mock_progress, mock_workflow):
 @patch("streamlit.info")
 def test_render_results_section_display(mock_info, mock_markdown, mock_tabs):
     """Verify rendering results does not fail when inspecting result payload."""
-    mock_tabs.return_value = [MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()]
+    mock_tabs.return_value = [MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()]
 
     sample_result = {
         "research_topic": "Quantum Computing",

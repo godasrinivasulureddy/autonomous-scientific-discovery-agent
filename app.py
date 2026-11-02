@@ -320,6 +320,9 @@ def execute_pipeline(
                 result = run_research_from_papers(
                     research_topic=topic,
                     max_results=config["max_papers"],
+                    experiment_values=inputs["experiment_values"],
+                    memory_manager=memory_manager,
+                    enable_statistical_critic=config["enable_statistical_critic"],
                 )
             except Exception as search_err:
                 st.info(f"Live search defaulted to provided text: {search_err}")
@@ -361,6 +364,8 @@ def execute_pipeline(
         result["metrics"] = metrics
         result["agent_stages"] = agent_stages
         result["workflow_mode"] = mode
+        if memory_manager:
+            result["memory_manager"] = memory_manager
 
         return result
 
@@ -459,11 +464,12 @@ def render_results_section(result: Dict[str, Any]) -> None:
     render_workflow_summary_card(result)
     st.subheader("📋 Discovery Pipeline Outputs & Agent Evaluation")
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "📚 Literature & Citations",
         "💡 Hypothesis & Method",
         "👁️ Multimodal Visuals",
         "⚡ Experiment & Statistical Critic",
+        "🧠 Cross-Agent Memory",
         "📊 System Analytics & Cost",
     ])
 
@@ -556,6 +562,26 @@ def render_results_section(result: Dict[str, Any]) -> None:
                 st.caption("Statistical critic was not invoked or experimental values were omitted.")
 
     with tab5:
+        st.markdown("#### Agent Cross-Turn Memory & Context Management")
+        mem_obj = result.get("memory_manager")
+        mem_context = result.get("memory_context")
+        
+        if mem_obj and hasattr(mem_obj, "get_history"):
+            history = mem_obj.get_history()
+            if history:
+                st.caption(f"Context Window Retention: {len(history)} turns stored in memory.")
+                for entry in history:
+                    role_badge = entry.get("role", "agent").upper()
+                    st.markdown(f"**[{role_badge}]**: {entry.get('content', '')}")
+            else:
+                st.info("Cross-agent memory active. No prior interactions recorded in this session.")
+        elif mem_context:
+            st.markdown("##### 📝 Synthesized Context Memory:")
+            st.info(mem_context)
+        else:
+            st.info("Cross-Agent memory manager is active for multi-step reasoning context retention.")
+
+    with tab6:
         st.markdown("#### Resource Utilization, Token Usage & Estimated Cost")
         metrics: Optional[ExecutionMetrics] = result.get("metrics")
         if metrics:
