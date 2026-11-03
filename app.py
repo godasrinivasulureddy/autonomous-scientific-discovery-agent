@@ -25,6 +25,7 @@ from agents.orchestrator import (
 )
 from agents.rag_orchestrator import run_pinecone_rag_research, run_rag_research
 from services.cost_tracker import track_discovery_metrics, ExecutionMetrics
+from agents.research_synthesizer import generate_report, save_report
 
 
 def init_page_config() -> None:
@@ -464,11 +465,12 @@ def render_results_section(result: Dict[str, Any]) -> None:
     render_workflow_summary_card(result)
     st.subheader("📋 Discovery Pipeline Outputs & Agent Evaluation")
 
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         "📚 Literature & Citations",
         "💡 Hypothesis & Method",
         "👁️ Multimodal Visuals",
         "⚡ Experiment & Statistical Critic",
+        "📄 Research Report Export",
         "🧠 Cross-Agent Memory",
         "📊 System Analytics & Cost",
     ])
@@ -562,6 +564,55 @@ def render_results_section(result: Dict[str, Any]) -> None:
                 st.caption("Statistical critic was not invoked or experimental values were omitted.")
 
     with tab5:
+        st.markdown("#### 📄 Synthesized Scientific Research Report")
+        st.caption("Evidence-grounded, peer-verifiable report generated in Markdown and LaTeX format.")
+
+        report_data = {
+            "question": result.get("research_topic", ""),
+            "hypothesis": result.get("hypothesis", ""),
+            "sources": extract_all_citations(result),
+            "experiment": {"description": "Automated verification benchmark", "execution": result.get("experiment", {})},
+            "evaluation": result.get("statistical_critic_result"),
+            "figures": [
+                {"source": 1, "figure": item.get("reference_label", "Fig 1"), "finding": item.get("analysis", "")[:120]}
+                for item in result.get("visual_analyses", [])
+            ],
+            "title": f"Scientific Discovery Report: {result.get('research_topic', 'Analysis')}",
+        }
+
+        try:
+            synthesized_report = generate_report(report_data)
+            md_text = synthesized_report.to_markdown()
+            latex_text = synthesized_report.to_latex()
+
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                st.download_button(
+                    "📥 Download Report (Markdown)",
+                    data=md_text,
+                    file_name="scientific_discovery_report.md",
+                    mime="text/markdown",
+                    use_container_width=True,
+                )
+            with col_btn2:
+                st.download_button(
+                    "📥 Download Report (LaTeX)",
+                    data=latex_text,
+                    file_name="scientific_discovery_report.tex",
+                    mime="application/x-latex",
+                    use_container_width=True,
+                )
+
+            with st.expander("👁️ Preview Report (Markdown)", expanded=True):
+                st.markdown(md_text)
+
+            with st.expander("📜 Preview LaTeX Source Code", expanded=False):
+                st.code(latex_text, language="latex")
+
+        except Exception as rep_err:
+            st.info(f"Report synthesis in progress: {rep_err}")
+
+    with tab6:
         st.markdown("#### Agent Cross-Turn Memory & Context Management")
         mem_obj = result.get("memory_manager")
         mem_context = result.get("memory_context")
@@ -581,7 +632,7 @@ def render_results_section(result: Dict[str, Any]) -> None:
         else:
             st.info("Cross-Agent memory manager is active for multi-step reasoning context retention.")
 
-    with tab6:
+    with tab7:
         st.markdown("#### Resource Utilization, Token Usage & Estimated Cost")
         metrics: Optional[ExecutionMetrics] = result.get("metrics")
         if metrics:
