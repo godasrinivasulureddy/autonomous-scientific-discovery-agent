@@ -1,0 +1,42 @@
+[
+  {
+    "query_id": "Q1",
+    "domain": "Genomic Engineering",
+    "query": "CRISPR-Cas9 off-target cleavage reduction mechanisms",
+    "relevant_doc_ids": ["doc_crispr_01", "doc_crispr_02"],
+    "expected_concepts": ["Cas9 variants", "off-target cleavage", "on-target efficiency", "fidelity"],
+    "supported_experiment": "descriptive_statistics"
+  },
+  {
+    "query_id": "Q2",
+    "domain": "Structural Biology",
+    "query": "AlphaFold protein structure prediction accuracy and limitations",
+    "relevant_doc_ids": ["doc_alphafold_01", "doc_alphafold_02"],
+    "expected_concepts": ["pLDDT", "structural variability", "proteome", "crystallography"],
+    "supported_experiment": "descriptive_statistics"
+  },
+  {
+    "query_id": "Q3",
+    "domain": "Materials Science",
+    "query": "Solid-state electrolyte lithium dendrite suppression",
+    "relevant_doc_ids": ["doc_battery_01"],
+    "expected_concepts": ["lithium dendrites", "solid electrolyte interface", "ionic conductivity"],
+    "supported_experiment": "descriptive_statistics"
+  },
+  {
+    "query_id": "Q4",
+    "domain": "Pharmacology",
+    "query": "mRNA vaccine lipid nanoparticle stability under varying pH",
+    "relevant_doc_ids": ["doc_lnp_01"],
+    "expected_concepts": ["lipid nanoparticles", "pH sensitivity", "encapsulation efficiency", "stability"],
+    "supported_experiment": "descriptive_statistics"
+  },
+  {
+    "query_id": "Q5",
+    "domain": "Computational Oncology",
+    "query": "Multi-omics biomarker discovery for therapeutic target identification",
+    "relevant_doc_ids": ["doc_oncology_01", "doc_oncology_02"],
+    "expected_concepts": ["transcriptomics", "biomarker discovery", "hazard ratio", "survival"],
+    "supported_experiment": "descriptive_statistics"
+  }
+]
