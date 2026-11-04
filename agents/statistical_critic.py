@@ -71,6 +71,7 @@ class StatResult:
     limitations: list = field(default_factory=list)
     explanation: str = ""
     label: str = ""
+    direction: str = ""
 
     def to_dict(self):
         return asdict(self)
@@ -570,6 +571,7 @@ def _finish(res, what, direction):
         res.verdict = "inconclusive"
         res.explanation = "The test did not produce a p-value, so no conclusion can be drawn."
         return
+    res.direction = direction or ""
     significant = res.p_value < res.alpha
     res.verdict = "significant" if significant else "not_significant"
 

@@ -1,0 +1,54 @@
+{
+  "benchmark_metrics": {
+    "queries_evaluated": 5,
+    "top_k": 3,
+    "mean_precision_at_k": 0.5333,
+    "mean_recall_at_k": 1.0,
+    "mean_mrr": 1.0,
+    "detailed_results": [
+      {
+        "query_id": "Q1",
+        "query": "CRISPR-Cas9 off-target cleavage reduction mechanisms",
+        "precision_at_k": 0.6667,
+        "recall_at_k": 1.0,
+        "mrr": 1.0
+      },
+      {
+        "query_id": "Q2",
+        "query": "AlphaFold protein structure prediction accuracy and limitations",
+        "precision_at_k": 0.6667,
+        "recall_at_k": 1.0,
+        "mrr": 1.0
+      },
+      {
+        "query_id": "Q3",
+        "query": "Solid-state electrolyte lithium dendrite suppression",
+        "precision_at_k": 0.3333,
+        "recall_at_k": 1.0,
+        "mrr": 1.0
+      },
+      {
+        "query_id": "Q4",
+        "query": "mRNA vaccine lipid nanoparticle stability under varying pH",
+        "precision_at_k": 0.3333,
+        "recall_at_k": 1.0,
+        "mrr": 1.0
+      },
+      {
+        "query_id": "Q5",
+        "query": "Multi-omics biomarker discovery for therapeutic target identification",
+        "precision_at_k": 0.6667,
+        "recall_at_k": 1.0,
+        "mrr": 1.0
+      }
+    ]
+  },
+  "citation_grounding_audit": {
+    "total_citations": 2,
+    "valid_citations": 2,
+    "invalid_citations": [],
+    "is_fully_grounded": true
+  },
+  "execution_success_rate": 1.0,
+  "docker_sandbox_isolation": "Verified"
+}
